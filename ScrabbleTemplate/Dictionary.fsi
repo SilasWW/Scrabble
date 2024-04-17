@@ -1,4 +1,4 @@
-module internal Dictionary
+﻿module internal Dictionary
 
     type Dict
 
