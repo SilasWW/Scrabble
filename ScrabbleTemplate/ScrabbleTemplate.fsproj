@@ -7,6 +7,10 @@
 
   <ItemGroup>
 
+    <Compile Include="Dictionary.fsi" />
+
+    <Compile Include="Dictionray.fs" />
+
     <Content Include="Dictionaries\English.txt" />
     <Compile Include="Program.fs" />
   </ItemGroup>
