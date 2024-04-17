@@ -9,7 +9,7 @@
 
     <Compile Include="Dictionary.fsi" />
 
-    <Compile Include="Dictionray.fs" />
+    <Compile Include="Dictionary.fs" />
 
     <Content Include="Dictionaries\English.txt" />
     <Compile Include="Program.fs" />

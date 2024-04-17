@@ -1,89 +1,166 @@
-﻿// ScrabbleUtil contains the types coord, boardProg, and SquareProg. Remove these from your file before proceeding.
-// Also note that the modulse Ass7 and ImpParser have been merged to one module called Parser.
+﻿module internal Parser
 
-// Insert your Parser.fs file here from Assignment 7. All modules must be internal.
-
-module internal Parser
-
-    open StateMonad
-    open ScrabbleUtil // NEW. KEEP THIS LINE.
     open Eval
-    open FParsecLight.TextParser     // Industrial parser-combinator library. Use for Scrabble Project.
+    open StateMonad
+    open ScrabbleUtil
     
+    //sketchy
+    open FParsecLight.TextParser
     
-    let pIntToChar  = pstring "not implemented"
-    let pPointValue = pstring "not implemented"
+    let pIntToChar  = pstring "intToChar"
+    let pPointValue = pstring "pointValue"
 
-    let pCharToInt  = pstring "not implemented"
-    let pToUpper    = pstring "not implemented"
-    let pToLower    = pstring "not implemented"
-    let pCharValue  = pstring "not implemented"
+    let pCharToInt  = pstring "charToInt"
+    let pToUpper    = pstring "toUpper"
+    let pToLower    = pstring "toLower"
+    let pCharValue  = pstring "charValue"
 
-    let pTrue       = pstring "not implemented"
-    let pFalse      = pstring "not implemented"
-    let pIsDigit    = pstring "not implemented"
-    let pIsLetter   = pstring "not implemented"
+    let pTrue       = pstring "true"
+    let pFalse      = pstring "false"
+    let pIsDigit    = pstring "isDigit"
+    let pIsLetter   = pstring "isLetter"
+    let pIsVowel   = pstring "isVowel"
 
-    let pif       = pstring "not implemented"
-    let pthen     = pstring "not implemented"
-    let pelse     = pstring "not implemented"
-    let pwhile    = pstring "not implemented"
-    let pdo       = pstring "not implemented"
-    let pdeclare  = pstring "not implemented"
+    let pif       = pstring "if"
+    let pthen     = pstring "then"
+    let pelse     = pstring "else"
+    let pwhile    = pstring "while"
+    let pdo       = pstring "do"
+    let pdeclare  = pstring "declare"
 
-    let whitespaceChar = pstring "not implemented"
-    let pletter        = pstring "not implemented"
-    let palphanumeric  = pstring "not implemented"
+    let whitespaceChar = satisfy System.Char.IsWhiteSpace <?> "whitespace"
+    let pletter        = satisfy System.Char.IsLetter <?> "letter"
+    let palphanumeric  = satisfy System.Char.IsLetterOrDigit <?> "alphanumeric"
 
-    let spaces         = pstring "not implemented"
-    let spaces1        = pstring "not implemented"
+    let spaces         = many whitespaceChar <?> "space"
+    let spaces1        = many1 whitespaceChar <?> "space1"
 
-    let (.>*>.) _ _ = failwith "not implemented"
-    let (.>*>) _ _  = failwith "not implemented"
-    let (>*>.) _ _  = failwith "not implemented"
+    let (.>*>.) p1 p2 = p1 .>> spaces .>>. p2 
+    let (.>*>) p1 p2  = p1 .>> spaces .>> p2
+    let (>*>.) p1 p2  = p1 .>> spaces >>. p2
 
-    let parenthesise _ = failwith "not implemented"
+    let parenthesise p = pchar '(' >*>. p .>*> pchar ')'
+    let spaceParenthesise p = spaces >*>. (parenthesise p) .>*> spaces
+    let curlyBrackets p = pchar '{' >*>. p .>*> pchar '}'
 
-    let pid = pstring "not implemented"
+    let charListToStr (a: char list) = System.String.Concat(a)
 
-    
-    let unop _  = failwith "not implemented"
-    let binop _  = failwith "not implemented"
+    let pid = pchar '_' <|> pletter .>>. many (palphanumeric <|> pchar '_') |>> fun (a, b) -> charListToStr(a::b)
+
+    let unop op a = op >*>. a
+    let binop op p1 p2 = p1 .>*> op .>*>. p2
 
     let TermParse, tref = createParserForwardedToRef<aExp>()
     let ProdParse, pref = createParserForwardedToRef<aExp>()
     let AtomParse, aref = createParserForwardedToRef<aExp>()
 
     let AddParse = binop (pchar '+') ProdParse TermParse |>> Add <?> "Add"
-    do tref := choice [AddParse; ProdParse]
+    let SubParse = binop (pchar '-') ProdParse TermParse |>> Sub <?> "Sub"
+    do tref := choice [AddParse; SubParse; ProdParse]
 
     let MulParse = binop (pchar '*') AtomParse ProdParse |>> Mul <?> "Mul"
-    do pref := choice [MulParse; AtomParse]
+    let DivParse = binop (pchar '/') AtomParse ProdParse |>> Div <?> "Div"
+    let ModParse = binop (pchar '%') AtomParse ProdParse |>> Mod <?> "Mod"
+    do pref := choice [MulParse; DivParse; ModParse; AtomParse]
 
     let NParse   = pint32 |>> N <?> "Int"
     let ParParse = parenthesise TermParse
-    do aref := choice [NParse; ParParse]
+    let PVParse = unop pPointValue AtomParse |>> PV <?> "PV"
+    let NegParse = unop (pchar '-') AtomParse |>> (fun a -> Mul ((N -1), a)) <?> "Neg"
+    let VParse = pid |>> V <?> "V"
 
     let AexpParse = TermParse 
 
-    let CexpParse = pstring "not implemented"
+    let CParse, cref = createParserForwardedToRef<cExp>()
 
-    let BexpParse = pstring "not implemented"
+    let charParse = between (pchar ''') (pchar ''') (palphanumeric <|> whitespaceChar) |>> C <?> "C"
+    let toUppperParse = unop pToUpper (parenthesise CParse) |>> ToUpper <?> "ToUpper"
+    let toLowerParse = unop pToLower (parenthesise CParse) |>> ToLower <?> "ToLower"
+    let intToCharParse = unop pIntToChar (parenthesise AexpParse) |>> IntToChar <?> "IntToChar"
+    let charValueParse = unop pCharValue (parenthesise AexpParse) |>> CV <?> "CV"
+    do cref := choice [charValueParse; intToCharParse; toUppperParse; toLowerParse; charParse]
 
-    let stmParse = pstring "not implemented"
+    let CharToIntParser = unop pCharToInt (parenthesise CParse) |>> CharToInt <?> "V"
+    do aref := choice [CharToIntParser; NegParse; PVParse; VParse; NParse; ParParse]
+    
+    let CexpParse = CParse
 
-    (* The rest of your parser goes here *)
-    type word   = (char * int) list
+    let BTerm, btref = createParserForwardedToRef<bExp>()
+    let BProd, bpref = createParserForwardedToRef<bExp>()
+    let BAtom, baref = createParserForwardedToRef<bExp>()
+
+    let andParse = binop (pstring "/\\") BProd BTerm |>> Conj <?> "Conj"
+    let orParse = binop (pstring "\\/") BProd BTerm |>> (fun (x, y) -> Not (Conj (Not x, Not y))) <?> "Conj"
+
+    do btref := choice [andParse; orParse; BProd]
+
+    let equalParse = binop (pchar '=') AexpParse AexpParse |>> AEq <?> "AEq"
+    let notEqual = binop (pstring "<>") AexpParse AexpParse |>> (fun (x, y) -> x .<>. y) <?> "Not Equal"
+    let lessThanParse = binop (pchar '<') AexpParse AexpParse |>> ALt <?> "ALt"
+    let biggerThanOrEqualParse = binop (pstring ">=") AexpParse AexpParse |>> (fun (x, y) -> x .>=. y) <?> "BiggerOrEqual"
+    let biggerThan = binop (pchar '>') AexpParse AexpParse |>> (fun (x,y) -> x .>. y) <?> "Great than"
+    let lessOrEqual = binop (pstring "<=") AexpParse AexpParse |>> (fun (x,y) -> x .<=. y) <?> "lessOrEqual"
+    do bpref := choice [equalParse; notEqual; lessThanParse; lessOrEqual; biggerThan; biggerThanOrEqualParse; BAtom]
+
+    let trueParse = pTrue |>> (fun _ -> TT) <?> "True"
+    let falseParse = pFalse |>> (fun _ -> FF) <?> "False"
+    let notParse = unop (pchar '~') BAtom |>> (fun x -> Not x) <?> "Not"
+    let isLetterPrase = unop pIsLetter CexpParse |>> IsLetter <?> "IsLetter"
+    let isVowel = unop pIsVowel CexpParse |>> IsVowel <?> "IsVowel"
+    let isDigit = unop pIsDigit CexpParse |>> IsDigit <?> "IsDigit"
+    let parParse = parenthesise BTerm
+    do baref := choice [notParse; isLetterPrase; isVowel; isDigit; trueParse; falseParse; parParse]
+
+    let BexpParse = BTerm
+
+    let SFirst, sFirstRef = createParserForwardedToRef<stm>()
+    let SSecond, sSecondRef = createParserForwardedToRef<stm>()
+    let cbParse = curlyBrackets SFirst <?> "CurlyBrackets"
+    
+    let seqParse = binop (pchar ';') SSecond SFirst |>> Seq <?> "Seq"
+    let iteParse = unop pif (parenthesise BTerm) .>*>. unop pthen cbParse .>*>. unop pelse SSecond |>> (fun ((bool, ifTrue), ifFalse) -> ITE (bool,ifTrue,ifFalse)) <?> "If-then-else"
+    let ifParse = unop pif (parenthesise BTerm) .>*>. unop pthen cbParse |>> (fun (bool, ifTrue) -> ITE (bool, ifTrue, Skip)) <?> "If-then"
+    let whileParse = unop pwhile (parenthesise BTerm) .>*>. unop pdo cbParse |>> While <?> "While-do"
+    let assignParse = binop (pstring ":=") pid TermParse |>> Ass <?> "Assign"
+    let declareParse = pdeclare >*>. pid |>> Declare <?> "Declare"
+    
+    
+    do sFirstRef := choice [seqParse; SSecond]
+    do sSecondRef := choice [assignParse; declareParse;iteParse;ifParse;cbParse;whileParse]
+
+    let stmntParse = SFirst
+    
+
+    type coord      = int * int
+    type squareProg = Map<int, string>
+
+(* The rest of your parser goes here *)
     type squareFun = word -> int -> int -> Result<int, Error>
+    type word   = (char * int) list
     type square = Map<int, squareFun>
     
-    type boardFun2 = coord -> Result<square option, Error>
-        
+    let parseSquareProg (sqp:Map<int,string>) = sqp |> Map.map (fun _ p -> (stmntToSquareFun (getSuccess (run stmntParse p))))
+
+    type boardFun2 = coord -> StateMonad.Result<square option, StateMonad.Error>
+    
+    let parseBoardProg (s:string) (sqs:Map<int, square>) : boardFun2 =
+        //printf "Inside parseboardProg: %A \n" sqs
+        stmntToBoardFun (getSuccess (run stmntParse s)) sqs
+
+
+
     type board = {
         center        : coord
         defaultSquare : square
         squares       : boardFun2
     }
-    
-    // Default (unusable) board in case you are not implementing a parser for the DSL.
-    let mkBoard : boardProg -> board = fun _ -> {center = (0,0); defaultSquare = Map.empty; squares = fun _ -> Success (Some Map.empty)}
+
+    let mkBoard (bp : boardProg) =
+            let squaresMap = bp.squares
+            let squares = Map.map (fun _ squareProg -> parseSquareProg squareProg) squaresMap
+            let defaultSquare = Map.find bp.usedSquare squaresMap
+            {
+                center = bp.center
+                defaultSquare = parseSquareProg defaultSquare
+                squares = parseBoardProg bp.prog squares
+            }

@@ -1,6 +1,4 @@
-﻿// Learn more about F# at http://fsharp.org
-
-let time f =
+﻿let time f =
     let start = System.DateTime.Now
     let res = f ()
     let finish = System.DateTime.Now
