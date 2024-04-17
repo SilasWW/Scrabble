@@ -1,2 +1,2 @@
 # Scrabble
-Repo for building a Scrabble clone, in F#
+This is repo for a university course in Functional Programming using F#.
