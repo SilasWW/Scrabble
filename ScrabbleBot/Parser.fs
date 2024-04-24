@@ -146,9 +146,7 @@
     let parseBoardProg (s:string) (sqs:Map<int, square>) : boardFun2 =
         //printf "Inside parseboardProg: %A \n" sqs
         stmntToBoardFun (getSuccess (run stmntParse s)) sqs
-
-
-
+   
     type board = {
         center        : coord
         defaultSquare : square

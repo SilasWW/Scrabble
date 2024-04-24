@@ -1,4 +1,4 @@
-﻿namespace YourClientName
+﻿namespace Robert
 
 open ScrabbleUtil
 open ScrabbleUtil.ServerCommunication
@@ -74,6 +74,7 @@ module Scrabble =
             send cstream (SMPlay move)
 
             let msg = recv cstream
+            printfn "msg: %A" msg
             debugPrint (sprintf "Player %d <- Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
 
             match msg with
