@@ -1,4 +1,4 @@
-﻿namespace YourClientName
+﻿namespace Robert
 
 open ScrabbleUtil
 open ScrabbleUtil.ServerCommunication
@@ -48,21 +48,52 @@ module State =
         dict          : ScrabbleUtil.Dictionary.Dict
         playerNumber  : uint32
         hand          : MultiSet.MultiSet<uint32>
+        playedLetters : Map<coord, (char * int)>
+        numberofplayers : uint32
     }
 
-    let mkState b d pn h = {board = b; dict = d;  playerNumber = pn; hand = h }
+    let mkState b d pn N h L  = {board = b; dict = d;  playerNumber = pn; numberofplayers = N; hand = h; playedLetters = L;  }
 
     let board st         = st.board
     let dict st          = st.dict
     let playerNumber st  = st.playerNumber
     let hand st          = st.hand
+    let playedLetters st = st.playedLetters
+    let numberofplayers st = st.numberofplayers
+
+    let insertMovesIntoState (moves:list<coord * (uint32 * (char * int))>) (state:state) =
+       List.fold (fun acc move ->
+           let (coord, (_,(char, charPoints))) = move
+            //debugPrint (sprintf "Inserting move %A %A\n" coord (char))
+           let newPlayedLetters = acc.playedLetters |> Map.add coord (char, charPoints)
+           mkState acc.board acc.dict acc.playerNumber acc.numberofplayers acc.hand acc.playedLetters 
+        ) state moves
+
+
+    let updateHand ms st newPieces =
+                // get a multiset of the indexes (uint) of the tiles you played
+                let playedIndexes = 
+                    ms
+                    |> Seq.map (fun move -> 
+                        let (_, (charuint, (_, _))) = move
+                        charuint
+                        ) 
+                    |> Seq.toList 
+                    |> MultiSet.ofList
+
+                // remove played tiles from your hand
+                let subtractedHand = MultiSet.subtract (hand st) playedIndexes
+
+                // add the new tiles to your hand
+                List.fold (fun acc (indexOfLetter, letterCount) -> 
+                MultiSet.add indexOfLetter letterCount acc) subtractedHand newPieces
 
 module Scrabble =
     open System.Threading
 
     let playGame cstream pieces (st : State.state) =
 
-        let rec aux (st : State.state) =
+        let rec aux (st : State.state) (myTurn: bool) =
             Print.printHand pieces (State.hand st)
 
             // remove the force print when you move on from manual input (or when you have learnt the format)
@@ -79,22 +110,32 @@ module Scrabble =
             match msg with
             | RCM (CMPlaySuccess(ms, points, newPieces)) ->
                 (* Successful play by you. Update your state (remove old tiles, add the new ones, change turn, etc) *)
-                let st' = st // This state needs to be updated
-                aux st'
+               // Update playedLetters with new moves
+               forcePrint "-------------------- Successful play by you ---------------------"
+               let updatedStateLetters = State.insertMovesIntoState ms st
+
+               // Update hand
+               let newHand = State.updateHand ms st newPieces
+
+               // Update the state
+               let newState = State.mkState (State.board st) (State.dict st) (State.playerNumber st) (State.numberofplayers st) newHand updatedStateLetters.playedLetters 
+
+               aux newState (st.playerNumber % st.numberofplayers + 1u = st.playerNumber)
             | RCM (CMPlayed (pid, ms, points)) ->
                 (* Successful play by other player. Update your state *)
-                let st' = st // This state needs to be updated
-                aux st'
+                forcePrint "-------------------- Word Played by CMPlayed ---------------------"
+                //let st' = st // This state needs to be updated
+                aux st (st.playerNumber % st.numberofplayers + 1u = st.playerNumber)
             | RCM (CMPlayFailed (pid, ms)) ->
                 (* Failed play. Update your state *)
                 let st' = st // This state needs to be updated
-                aux st'
+                aux st' (st.playerNumber % st.numberofplayers + 1u = st.playerNumber)
             | RCM (CMGameOver _) -> ()
             | RCM a -> failwith (sprintf "not implmented: %A" a)
-            | RGPE err -> printfn "Gameplay Error:\n%A" err; aux st
+            | RGPE err -> printfn "Gameplay Error:\n%A" err; aux st (st.playerNumber % st.numberofplayers + 1u = st.playerNumber)
 
 
-        aux st
+        aux st (st.playerNumber % st.numberofplayers + 1u = st.playerNumber)
 
     let startGame 
             (boardP : boardProg) 
@@ -120,5 +161,5 @@ module Scrabble =
                   
         let handSet = List.fold (fun acc (x, k) -> MultiSet.add x k acc) MultiSet.empty hand
 
-        fun () -> playGame cstream tiles (State.mkState board dict playerNumber handSet)
+        fun () -> playGame cstream tiles (State.mkState board dict playerNumber numPlayers handSet Map.empty )
         

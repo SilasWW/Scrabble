@@ -34,5 +34,9 @@
     let foldBack (f : 'a -> uint32 -> 'b -> 'b) (R(s) : MultiSet<'a>) (x : 'b) = Map.foldBack f s x
 
     let ofList (lst : 'a list) : MultiSet<'a> = List.fold(fun acc element -> addSingle element acc) empty lst
+
+    let subtract s1 s2 =
+      fold (fun acc elem _ ->
+          remove elem (numItems elem s2) acc) s1 s2
     
     // Vi slettede toList

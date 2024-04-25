@@ -24,3 +24,5 @@
     val foldBack : ('a -> uint32 -> 'b -> 'b) -> MultiSet<'a> -> 'b -> 'b
 
     val ofList : 'a list -> MultiSet<'a>
+
+    val subtract : MultiSet<'a> -> MultiSet<'a> -> MultiSet<'a>
