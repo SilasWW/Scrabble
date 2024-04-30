@@ -48,16 +48,18 @@ module State =
         dict          : ScrabbleUtil.Dictionary.Dict
         playerNumber  : uint32
         hand          : MultiSet.MultiSet<uint32>
+        playerTurn    : uint32
         playedLetters : Map<coord, (char * int)>
         numberofplayers : uint32
     }
 
-    let mkState b d pn N h L  = {board = b; dict = d;  playerNumber = pn; numberofplayers = N; hand = h; playedLetters = L;  }
+    let mkState b d pn N pt h L  = {board = b; dict = d;  playerNumber = pn; numberofplayers = N; hand = h; playerTurn = pt; playedLetters = L;  }
 
     let board st         = st.board
     let dict st          = st.dict
     let playerNumber st  = st.playerNumber
     let hand st          = st.hand
+    let playerTurn st      = st.playerTurn
     let playedLetters st = st.playedLetters
     let numberofplayers st = st.numberofplayers
 
@@ -66,7 +68,7 @@ module State =
            let (coord, (_,(char, charPoints))) = move
             //debugPrint (sprintf "Inserting move %A %A\n" coord (char))
            let newPlayedLetters = acc.playedLetters |> Map.add coord (char, charPoints)
-           mkState acc.board acc.dict acc.playerNumber acc.numberofplayers acc.hand acc.playedLetters 
+           mkState acc.board acc.dict acc.playerNumber acc.numberofplayers acc.playerTurn acc.hand acc.playedLetters 
         ) state moves
 
 
@@ -94,48 +96,61 @@ module Scrabble =
     let playGame cstream pieces (st : State.state) =
 
         let rec aux (st : State.state) (myTurn: bool) =
-            Print.printHand pieces (State.hand st)
+            if (myTurn) then
+                forcePrint "-------------------- Here is your hand ---------------------\n\n" 
+                Print.printHand pieces (State.hand st)
 
             // remove the force print when you move on from manual input (or when you have learnt the format)
-            forcePrint "Input move (format '(<x-coordinate> <y-coordinate> <piece id><character><point-value> )*', note the absence of space between the last inputs)\n\n"
-            let input =  System.Console.ReadLine()
-            let move = RegEx.parseMove input
+                forcePrint "Input move (format '(<x-coordinate> <y-coordinate> <piece id><character><point-value> )*', note the absence of space between the last inputs)\n\n"
+            //let input =  System.Console.ReadLine() 
+                if st.playedLetters.Count = 0 then
+                    // First move
+                    let input = MoveRobert.RobertsFirstMove (State.hand st) (State.board st) st.dict st.playedLetters (State.board st).center (1,0)
+            
+                    let move = RegEx.parseMove input
 
-            debugPrint (sprintf "Player %d -> Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
-            send cstream (SMPlay move)
+                    debugPrint (sprintf "Player %d -> Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
+                    send cstream (SMPlay move)
 
             let msg = recv cstream
-            debugPrint (sprintf "Player %d <- Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
-
             match msg with
             | RCM (CMPlaySuccess(ms, points, newPieces)) ->
                 (* Successful play by you. Update your state (remove old tiles, add the new ones, change turn, etc) *)
+
                // Update playedLetters with new moves
-               forcePrint "-------------------- Successful play by you ---------------------"
+               forcePrint "-------------------- Successful play by you ---------------------\n"
                let updatedStateLetters = State.insertMovesIntoState ms st
 
                // Update hand
                let newHand = State.updateHand ms st newPieces
 
                // Update the state
-               let newState = State.mkState (State.board st) (State.dict st) (State.playerNumber st) (State.numberofplayers st) newHand updatedStateLetters.playedLetters 
+               let newState = State.mkState (State.board st) (State.dict st) (State.playerNumber st) (State.numberofplayers st) (State.playerTurn st) newHand updatedStateLetters.playedLetters 
 
                aux newState (st.playerNumber % st.numberofplayers + 1u = st.playerNumber)
             | RCM (CMPlayed (pid, ms, points)) ->
                 (* Successful play by other player. Update your state *)
-                forcePrint "-------------------- Word Played by CMPlayed ---------------------"
+                printf "-------------------- Word Played by CMPlayed ---------------------\n"
                 //let st' = st // This state needs to be updated
-                aux st (st.playerNumber % st.numberofplayers + 1u = st.playerNumber)
+                // Update playedLetters with new moves
+                let updatedStateLetters = State.insertMovesIntoState ms st
+
+                let newState = State.mkState (State.board st) (State.dict st) (State.playerNumber st) (State.numberofplayers st) (State.playerTurn st) (State.hand st) updatedStateLetters.playedLetters
+
+                aux newState (pid % st.numberofplayers + 1u = st.playerNumber)
+            | RCM (CMPassed (pid)) ->
+                debugPrint (sprintf "-------------------- Word Passed byCMPlayed  ---------------------\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n")
+                aux st (pid % st.numberofplayers + 1u = st.playerNumber)
             | RCM (CMPlayFailed (pid, ms)) ->
                 (* Failed play. Update your state *)
-                let st' = st // This state needs to be updated
-                aux st' (st.playerNumber % st.numberofplayers + 1u = st.playerNumber)
+                //let st' = st // This state needs to be updated
+                aux st (pid % st.numberofplayers + 1u = st.playerNumber)
             | RCM (CMGameOver _) -> ()
             | RCM a -> failwith (sprintf "not implmented: %A" a)
-            | RGPE err -> printfn "Gameplay Error:\n%A" err; aux st (st.playerNumber % st.numberofplayers + 1u = st.playerNumber)
+            | RGPE err -> printfn "Gameplay Error:\n%A" err; aux st false
 
 
-        aux st (st.playerNumber % st.numberofplayers + 1u = st.playerNumber)
+        aux st (st.playerTurn = st.playerNumber)
 
     let startGame 
             (boardP : boardProg) 
@@ -161,5 +176,5 @@ module Scrabble =
                   
         let handSet = List.fold (fun acc (x, k) -> MultiSet.add x k acc) MultiSet.empty hand
 
-        fun () -> playGame cstream tiles (State.mkState board dict playerNumber numPlayers handSet Map.empty )
+        fun () -> playGame cstream tiles (State.mkState board dict playerNumber numPlayers playerTurn handSet Map.empty )
         

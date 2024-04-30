@@ -35,8 +35,10 @@
 
     let ofList (lst : 'a list) : MultiSet<'a> = List.fold(fun acc element -> addSingle element acc) empty lst
 
+    let toList s = foldBack (fun elem num acc -> List.init (int32 num) (fun _ -> elem) @ acc) s []
+
+    let map f s = ofList (List.map f (toList s))
+    
     let subtract s1 s2 =
       fold (fun acc elem _ ->
           remove elem (numItems elem s2) acc) s1 s2
-    
-    // Vi slettede toList

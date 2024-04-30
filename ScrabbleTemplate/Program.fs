@@ -33,12 +33,12 @@ let main argv =
 //    let board      = ScrabbleUtil.HoleBoard.holeBoard ()
 //    let board      = ScrabbleUtil.InfiniteHoleBoard.infiniteHoleBoard ()
 
-    let words     = readLines "../../../Dictionaries/English.txt"
+    let words     = readLines "Dictionaries/English.txt"
 
     let handSize   = 7u
     let timeout    = None
     let tiles      = ScrabbleUtil.English.tiles 1u
-    let seed       = None
+    let seed       = Some 3
     let port       = 13001
 
     let dictAPI =
@@ -50,8 +50,8 @@ let main argv =
         time (fun () -> ScrabbleUtil.Dictionary.mkDict words dictAPI)
         
     // Uncomment this line to call your client
-    let players   = [("Seb", dictionary, Robert.Scrabble.startGame)
-                     ("Silas", dictionary, Robert.Scrabble.startGame)]
+    let players   = [("Oxy", dictionary, Oxyphenbutazone.Scrabble.startGame)
+                     ("Karl", dictionary, Robert.Scrabble.startGame)]
 
    
 

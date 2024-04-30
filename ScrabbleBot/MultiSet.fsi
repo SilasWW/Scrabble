@@ -25,4 +25,8 @@
 
     val ofList : 'a list -> MultiSet<'a>
 
+    val toList : MultiSet<'a> -> list<'a>
+
+    val map :  ('a -> 'b) -> MultiSet<'a> -> MultiSet<'b>
+
     val subtract : MultiSet<'a> -> MultiSet<'a> -> MultiSet<'a>
