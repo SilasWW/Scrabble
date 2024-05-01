@@ -105,7 +105,8 @@ module Scrabble =
             //let input =  System.Console.ReadLine() 
                 if st.playedLetters.Count = 0 then
                     // First move
-                    let input = MoveRobert.RobertsFirstMove (State.hand st) (State.board st) st.dict st.playedLetters (State.board st).center (1,0)
+                    let letters = MultiSet.toList (State.hand st)
+                    let input = MoveRobert.RobertsFirstMove (State.hand st) (State.board st) letters pieces st.dict st.playedLetters (State.board st).center (1,0)
             
                     let move = RegEx.parseMove input
 
