@@ -16,11 +16,11 @@ module internal MoveRobert
 
         //sets starter values, when its the first turn
         if (playedLetters.Count = 0) then
-            StartingInfo <- ((-1, 0), (1, 0), [], 7u)
+            StartingInfo <- ((-1, 0), (1, 0), [], 3u)
             ()
         else 
             //this should be changed to handle when its not the first turn
-            StartingInfo <- ((-1, 0), (1, 0), [], 7u)
+            StartingInfo <- ((-1, 0), (1, 0), [], 3u)
             ()
 
         //states how long a word can be, which should be set by StartingInfo
@@ -59,9 +59,57 @@ module internal MoveRobert
         //collects all possible words
         let possiblewords = GetAllPossibleWords dict charactersOnHand []
 
-        for word in possiblewords do
-            printfn "word: %A" word
+        let findLongestList (lists : List<List<uint32>>) =
+            let rec findMaxLength (maxList : List<uint32>) (maxLength : int) (lists : List<List<uint32>>) =
+                match lists with
+                | [] -> (maxList, maxLength)
+                | lst::rest ->
+                    let length = List.length lst
+                    if length > maxLength then
+                        findMaxLength lst length rest
+                    else
+                        findMaxLength maxList maxLength rest
+
+            match lists with
+            | [] -> failwith "Empty list of lists"
+            | firstList::_ -> findMaxLength firstList (List.length firstList) lists
+
+        let longestWord = findLongestList possiblewords
+
+        let charNumberToPoints (char: int) = 
+            match char with
+            | 17 | 26                                       -> 10
+            | 10 | 24                                       -> 8
+            | 11                                            -> 5
+            | 6 | 8 | 22 | 23 | 25                          -> 4
+            | 2 | 3 | 13 | 16                               -> 3
+            | 4 | 7                                         -> 2
+            | 1 | 5 | 9 | 12 | 14 | 15 | 18 | 19 | 20 | 21  -> 1
+            | 0                                             -> 0
+            | _                                             -> failwith "can't convert uint"
+
+        let longestWordFormat (wordList, count) =
+            let alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+            let rec formatHelper acc x = function
+                | [], _ -> String.concat " " (List.rev acc)
+                | hd::tl, y ->
+                    let number = int hd
+                    let letter = alphabet.[number - 1]
+                    let points = charNumberToPoints number // Get corresponding points for the number
+                    let coord1 = x
+                    let coord2 = y * 10
+                    let formatted = sprintf "%d 0 %d%c%d" coord1 number letter points // Concatenate number and points after the letter
+                    formatHelper (formatted::acc) (x + 1) (tl, y)
+
+            formatHelper [] 0 (List.ofSeq wordList, count)
+
+
+        let formattedWord = longestWordFormat longestWord
+
+        //for word in possiblewords do
+            //printfn "word: %A" formattedWord
 
         let accWord = ""
 
-        accWord
+        formattedWord

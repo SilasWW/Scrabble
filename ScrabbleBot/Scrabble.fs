@@ -107,7 +107,7 @@ module Scrabble =
                     // First move
                     let letters = MultiSet.toList (State.hand st)
                     let input = MoveRobert.RobertsFirstMove (State.hand st) (State.board st) letters pieces st.dict st.playedLetters (State.board st).center (1,0)
-            
+                    //let input = System.Console.ReadLine()
                     let move = RegEx.parseMove input
 
                     debugPrint (sprintf "Player %d -> Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
