@@ -68,7 +68,7 @@ module State =
            let (coord, (_,(char, charPoints))) = move
             //debugPrint (sprintf "Inserting move %A %A\n" coord (char))
            let newPlayedLetters = acc.playedLetters |> Map.add coord (char, charPoints)
-           mkState acc.board acc.dict acc.playerNumber acc.numberofplayers acc.playerTurn acc.hand acc.playedLetters 
+           mkState acc.board acc.dict acc.playerNumber acc.numberofplayers acc.playerTurn acc.hand acc.playedLetters
         ) state moves
 
 

@@ -6,44 +6,58 @@ module internal MoveRobert
     open ScrabbleUtil.Dictionary
     open System
     
-    let RobertsFirstMove (hand : MultiSet<uint32>) (board:board) (letters:uint32 list) pieces (dict : Dictionary.Dict) (playedLetters: Map<coord, (char * int)>) (coord:coord) (direction:(int * int)) =
+    let RobertsFirstMove (hand : MultiSet<uint32>) (board : board) (charactersOnHand : uint32 list) pieces (dict : Dictionary.Dict) (playedLetters : Map<coord, (char * int)>) (coord : coord) (direction : (int * int)) =
 
-        let starter:coord * coord * list<uint32> * uint32 = ((-1, 0), (1, 0), [], 7u)
-        let _, _, _, possibleLength = starter
+        //shouldn't be used, just for setting an initial value to StartingInfo
+        let mutable (StartingInfo : coord * coord * list<uint32> * uint32) = ((-99, 99), (99, 99), [], 7u)
+        
+        //print the how many letters have been played
+        printf "PlayedLetters.Count = %A words" playedLetters.Count
 
-        let getPairFromSet (set:Set<char*int>) : char*int = 
+        //sets starter values, when its the first turn
+        if (playedLetters.Count = 0) then
+            StartingInfo <- ((-1, 0), (1, 0), [], 7u)
+            ()
+        else 
+            //this should be changed to handle when its not the first turn
+            StartingInfo <- ((-1, 0), (1, 0), [], 7u)
+            ()
+
+        //states how long a word can be, which should be set by StartingInfo
+        let maxLengthOfWord = StartingInfo |> fun (_, _, _, len) -> len
+
+        //extracts the pair from from the set
+        let GetTuple (set:Set<char*int>) : char*int = 
             match (Set.toList set) with
             | x::xs -> x
-            | [] -> failwith "Should not happen!"
+            | [] -> failwith "error"
         
-        let removeLetter letter letters = 
-            let index = List.tryFindIndex (fun x -> x = letter) letters
-            match index with
-            | Some(i) -> List.removeAt i letters
-            | None -> letters
+        //removes the letter as it is used to try to form a word
+        let RemoveUsedLetterFromHand letterToBeRemoved charactersOnHand = 
+            let foundIndex = List.tryFindIndex (fun x -> x = letterToBeRemoved) charactersOnHand
+            match foundIndex with
+            | Some(i) -> List.removeAt i charactersOnHand
+            | None -> charactersOnHand
 
-        //1. Define helper function that uses recursion to find all continuations
-        let rec aux (word:list<uint32>) letters auxDict =
-            //Make sure that the length of the current word is not longer than the possible length from the starter
-            if ((uint32) word.Length) >= possibleLength then [] else
-            //2. Fold over all letters available
+        //helperfunction to find all possible words that can be played
+        let rec GetAllPossibleWords (remainingLetters : Dict) (charactersOnHand : uint32 list) (word : list<uint32>) =
+            //this checks if our word has reached the max length
+            if ((uint32) word.Length) >= maxLengthOfWord then [] else
+            //our fold call over letters, we patternmatch if a if the next letter is found, if it is not and if IsWordFoundAndDict is empty
             List.fold (fun acc letter ->
-                //3. Use step function to check if a word can be made with the given letter
-                let result = Dictionary.step (fst (getPairFromSet (Map.find letter pieces))) auxDict
-                match result with
-                //3.1 If a word is found, append the the new word to the accumulator and continue the search with the new word. 
-                | Some r when (fst r) -> 
+                let IsWordFoundAndDict = step (fst (GetTuple (Map.find letter pieces))) remainingLetters
+                match IsWordFoundAndDict with
+                | Some result when (fst result) -> 
                     let newWord = List.append word [letter]
-                    (newWord::acc) @ (aux newWord (removeLetter letter letters) (snd r))
-                //3.2 If a word is not found, but the letter is legal, continue the search with the new word.
-                | Some r when not (fst r) ->
+                    (newWord::acc) @ (GetAllPossibleWords (snd result) (RemoveUsedLetterFromHand letter charactersOnHand) newWord)
+                | Some result when not (fst result) ->
                     let newWord = List.append word [letter]
-                    acc @ (aux newWord (removeLetter letter letters) (snd r))
-                //3.3 If letter is illegal, return empty list.
+                    acc @ (GetAllPossibleWords (snd result) (RemoveUsedLetterFromHand letter charactersOnHand) newWord)
                 | None -> acc
-            ) [] letters
+            ) [] charactersOnHand
         
-        let possiblewords = aux [] letters dict
+        //collects all possible words
+        let possiblewords = GetAllPossibleWords dict charactersOnHand []
 
         for word in possiblewords do
             printfn "word: %A" word
