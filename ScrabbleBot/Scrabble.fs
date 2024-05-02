@@ -42,7 +42,7 @@ module State =
     // Currently, it only keeps track of your hand, your player numer, your board, and your dictionary,
     // but it could, potentially, keep track of other useful
     // information, such as number of players, player turn, etc.
-
+   
     type state = {
         board         : Parser.board
         dict          : ScrabbleUtil.Dictionary.Dict
@@ -51,9 +51,10 @@ module State =
         playerTurn    : uint32
         playedLetters : Map<coord, (char * int)>
         numberofplayers : uint32
+        CBoard          : Map<coord, uint32>
     }
 
-    let mkState b d pn N pt h L  = {board = b; dict = d;  playerNumber = pn; numberofplayers = N; hand = h; playerTurn = pt; playedLetters = L;  }
+    let mkState b d pn N pt h L  CB = {board = b; dict = d;  playerNumber = pn; numberofplayers = N; hand = h; playerTurn = pt; playedLetters = L;  CBoard = CB;}
 
     let board st         = st.board
     let dict st          = st.dict
@@ -62,16 +63,21 @@ module State =
     let playerTurn st      = st.playerTurn
     let playedLetters st = st.playedLetters
     let numberofplayers st = st.numberofplayers
+    let CBoard st = st.CBoard
 
     let insertMovesIntoState (moves:list<coord * (uint32 * (char * int))>) (state:state) =
        List.fold (fun acc move ->
            let (coord, (_,(char, charPoints))) = move
             //debugPrint (sprintf "Inserting move %A %A\n" coord (char))
            let newPlayedLetters = acc.playedLetters |> Map.add coord (char, charPoints)
-           mkState acc.board acc.dict acc.playerNumber acc.numberofplayers acc.playerTurn acc.hand acc.playedLetters
+           mkState acc.board acc.dict acc.playerNumber acc.numberofplayers acc.playerTurn acc.hand newPlayedLetters acc.CBoard
         ) state moves
-
-
+    
+    
+    let mutable moves : (coord * (uint32 * (char * int))) list = [(0,0), (0u, ('a',0))]
+    
+    let UpdateMoves ms=
+        moves <- ms
     let updateHand ms st newPieces =
                 // get a multiset of the indexes (uint) of the tiles you played
                 let playedIndexes = 
@@ -105,8 +111,21 @@ module Scrabble =
             //let input =  System.Console.ReadLine() 
                 if st.playedLetters.Count = 0 then
                     // First move
+                    //sets starter values, when its the first turn
+                    let StartingInfo = ((-1, 0), (1, 0), [], 7u)
                     let letters = MultiSet.toList (State.hand st)
-                    let input = MoveRobert.RobertsFirstMove (State.hand st) (State.board st) letters pieces st.dict st.playedLetters (State.board st).center (1,0)
+                    let input = MoveRobert.RobertsFirstMove (State.hand st) (State.board st) letters pieces st.dict st.playedLetters (State.board st).center (1,0) (StartingInfo)
+                    //let input = System.Console.ReadLine()
+                    let move = RegEx.parseMove input
+
+                    debugPrint (sprintf "Player %d -> Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
+                    send cstream (SMPlay move)
+                else
+                    // Not first move
+                    //sets starter values, when its the first turn
+                    let StartingInfo = MoveRobert.getAllStarters (List.fold (fun acc (coord, (id, (_, _))) -> Map.add coord id acc) st.CBoard State.moves) //To Chat-gpt: What do i put here?
+                    let letters = MultiSet.toList (State.hand st)
+                    let input = MoveRobert.RobertsFirstMove (State.hand st) (State.board st) letters pieces st.dict st.playedLetters (State.board st).center (1,0) (StartingInfo.Head)
                     //let input = System.Console.ReadLine()
                     let move = RegEx.parseMove input
 
@@ -117,7 +136,9 @@ module Scrabble =
             match msg with
             | RCM (CMPlaySuccess(ms, points, newPieces)) ->
                 (* Successful play by you. Update your state (remove old tiles, add the new ones, change turn, etc) *)
-
+               
+               State.UpdateMoves ms
+               
                // Update playedLetters with new moves
                forcePrint "-------------------- Successful play by you ---------------------\n"
                let updatedStateLetters = State.insertMovesIntoState ms st
@@ -126,7 +147,7 @@ module Scrabble =
                let newHand = State.updateHand ms st newPieces
 
                // Update the state
-               let newState = State.mkState (State.board st) (State.dict st) (State.playerNumber st) (State.numberofplayers st) (State.playerTurn st) newHand updatedStateLetters.playedLetters 
+               let newState = State.mkState (State.board st) (State.dict st) (State.playerNumber st) (State.numberofplayers st) (State.playerTurn st) newHand updatedStateLetters.playedLetters (State.CBoard st)
 
                aux newState (st.playerNumber % st.numberofplayers + 1u = st.playerNumber)
             | RCM (CMPlayed (pid, ms, points)) ->
@@ -136,7 +157,7 @@ module Scrabble =
                 // Update playedLetters with new moves
                 let updatedStateLetters = State.insertMovesIntoState ms st
 
-                let newState = State.mkState (State.board st) (State.dict st) (State.playerNumber st) (State.numberofplayers st) (State.playerTurn st) (State.hand st) updatedStateLetters.playedLetters
+                let newState = State.mkState (State.board st) (State.dict st) (State.playerNumber st) (State.numberofplayers st) (State.playerTurn st) (State.hand st) updatedStateLetters.playedLetters (State.CBoard st)
 
                 aux newState (pid % st.numberofplayers + 1u = st.playerNumber)
             | RCM (CMPassed (pid)) ->
@@ -177,5 +198,5 @@ module Scrabble =
                   
         let handSet = List.fold (fun acc (x, k) -> MultiSet.add x k acc) MultiSet.empty hand
 
-        fun () -> playGame cstream tiles (State.mkState board dict playerNumber numPlayers playerTurn handSet Map.empty )
+        fun () -> playGame cstream tiles (State.mkState board dict playerNumber numPlayers playerTurn handSet Map.empty Map.empty)
         
