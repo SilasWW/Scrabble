@@ -30,15 +30,6 @@ module internal MoveRobert
             match foundIndex with
             | Some(i) -> List.removeAt i charactersOnHand
             | None -> charactersOnHand
-
-        // Adjust the dictionary state to reflect the use of startingChars
-        let InitializeDictionaryWithStartingChars (dict : Dictionary.Dict) (startingChars : uint32 list) =
-            List.fold (fun currentDict char ->
-                match Dictionary.step (fst (GetTuple (Map.find char pieces))) currentDict with
-                | Some (_, nextDict) -> nextDict
-                | None -> failwith "Invalid starting character sequence in dictionary."
-            ) dict startingChars
-
         
         // Helper function to process starting characters into a valid initial dictionary state
         let InitializeWithStartingChars (dict: Dictionary.Dict) (chars: list<uint32>) =
@@ -63,7 +54,7 @@ module internal MoveRobert
 
         // Adjust the starting point of possible words
         printf "\n1 \n"
-        let startCoord, direction, startingChars, _ = StartingInfo
+        let _, _, startingChars, _ = StartingInfo
 
         let initializedDict, initialWord = InitializeWithStartingChars dict startingChars
         let possibleWords = GetAllPossibleWords initializedDict (charactersOnHand |> List.filter (fun char -> not (List.contains char startingChars))) initialWord
@@ -71,13 +62,15 @@ module internal MoveRobert
         
         
         // Adjust the possible words to remove the startingChars from each word
-        let adjustedWords = possibleWords |> List.map (fun word -> word |> List.skip (List.length startingChars))
+        let adjustedWords = possibleWords |> List.map (fun word -> List.skip (List.length startingChars) word)
+
         
         printf "\n1.2 \n"
 
         let findLongestList (lists : List<List<uint32>>) =
             let mutable maxLength = 0
             let mutable maxList = []
+
             printf "\nList count: %d\n" (List.length lists)
 
             for lst in lists do
@@ -86,7 +79,7 @@ module internal MoveRobert
                     maxLength <- length
                     maxList <- lst
 
-            if lists.IsEmpty then failwith "Empty list of lists"
+            if maxList.IsEmpty then failwith "Empty list of lists"
             else (maxList, maxLength)
             
         printf "\n1.4 \n"
@@ -108,7 +101,7 @@ module internal MoveRobert
             | 0                                             -> 0
             | _                                             -> failwith "can't convert uint"
 
-        let longestWordFormat (startCoord: coord) (direction: coord) (startingChars: uint32 list) (wordListWithCount: List<uint32> * int) =
+        let longestWordFormat (startCoord: coord) (direction: coord) (startingChars: uint32 list) (wordListWithCount: List<uint32> * int) : string =
             let alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
             
             let deltaX, deltaY = direction
@@ -120,9 +113,11 @@ module internal MoveRobert
 
             let wordList, count = wordListWithCount  // Decompose the tuple into wordList and count
             
+            printf "WORDLIST %A\n" wordList
+            
             printf "\n2.1 \n"
 
-            let rec formatHelper acc (x, y) = function
+            let rec formatHelper acc (x, y) isFirstLetter = function
                 | [] -> String.concat " " (List.rev acc)
                 | hd::tl ->
                     let number = int hd
@@ -132,21 +127,32 @@ module internal MoveRobert
                     let letter = alphabet.[letterIndex]
                     let points = charNumberToPoints number  // Get corresponding points for the number
                     let formatted = sprintf "%d %d %d%c%d" x y number letter points  // Concatenate number and points after the letter
-                    formatHelper (formatted::acc) (x + deltaX, y + deltaY) tl
+                    
+                    // Check if the first letter should be removed
+                    let removeFirstLetter = isFirstLetter && (List.isEmpty startingChars || List.head startingChars = uint32 letter)
+                    
+                    // Recursively format the rest of the word list
+                    if removeFirstLetter then
+                        formatHelper acc (x + deltaX, y + deltaY) false tl
+                    else
+                        formatHelper (formatted::acc) (x + deltaX, y + deltaY) false tl
 
-            formatHelper [] (initialX, initialY) wordList  // Start formatting from the next position
+
+            let initialIsFirstLetter = not (List.isEmpty startingChars) && List.head startingChars = List.head wordList
+            formatHelper [] (initialX, initialY) initialIsFirstLetter wordList
+
         
         printf "\n2.2 \n"
 
 
         let startCoord, direction, startingChars, _ = StartingInfo
-        
-        printf "\n2.3 \n"
 
         
         printf "STARTING CHARS: %A" startingChars
         
         let formattedWord = longestWordFormat startCoord direction startingChars longestWord
+        
+        
         printf "\n3 \n"
         //for word in possiblewords do
             //printfn "word: %A" formattedWord
