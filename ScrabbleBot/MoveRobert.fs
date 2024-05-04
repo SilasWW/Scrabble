@@ -10,8 +10,8 @@ module internal MoveRobert
     open System.IO
     open ScrabbleUtil.DebugPrint
     
-    let RobertsFirstMove (hand : MultiSet<uint32>) (board : board) (charactersOnHand : uint32 list) pieces (dict : Dictionary.Dict) (playedLetters : Map<coord, (char * int)>) (coord : coord) (direction : (int * int)) (StartingInfo : coord * coord * uint32 list * uint32)=
-        
+    let RobertsFirstMove (hand : MultiSet<uint32>) (board : board) (charactersOnHand : uint32 list) pieces (dict : Dictionary.Dict) (playedLetters : Map<coord, (char * int)>) (coord : coord) (direction : (int * int)) (StartingInfo : (coord * coord * uint32 list * uint32) list)=
+            
         //print the how many letters have been played
         printf "PlayedLetters.Count = %A words" playedLetters.Count
 
@@ -63,7 +63,7 @@ module internal MoveRobert
         printf "\n1 \n"
         let _, _, startingChars, _ = StartingInfo
 
-        printf "\n1.1.1 \n"
+        printf "\n1.1.1 %A\n" startingChars
 
         let initializedDict, initialWord = InitializeWithStartingChars dict startingChars
         printf "\n1.1.2 \n"

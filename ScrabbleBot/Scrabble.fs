@@ -112,7 +112,7 @@ module Scrabble =
                 if st.playedLetters.Count = 0 then
                     // First move
                     //sets starter values, when its the first turn
-                    let StartingInfo = ((-1, 0), (1, 0), [], 7u)
+                    let StartingInfo = [((-1, 0), (1, 0), [], 7u)]
                     let letters = MultiSet.toList (State.hand st)
                     let input = MoveRobert.RobertsFirstMove (State.hand st) (State.board st) letters pieces st.dict st.playedLetters (State.board st).center (1,0) (StartingInfo)
                     //let input = System.Console.ReadLine()
@@ -125,7 +125,9 @@ module Scrabble =
                     //sets starter values, when its the first turn
                     let StartingInfo = MoveRobert.getAllStarters (List.fold (fun acc (coord, (id, (_, _))) -> Map.add coord id acc) st.CBoard State.moves) //To Chat-gpt: What do i put here?
                     let letters = MultiSet.toList (State.hand st)
-                    let input = MoveRobert.RobertsFirstMove (State.hand st) (State.board st) letters pieces st.dict st.playedLetters (State.board st).center (1,0) (StartingInfo.Head)
+
+                    //should loop through the startinginfo list instead of just setting .head
+                    let input = MoveRobert.RobertsFirstMove (State.hand st) (State.board st) letters pieces st.dict st.playedLetters (State.board st).center (1,0) (StartingInfo)
                     //let input = System.Console.ReadLine()
                     let move = RegEx.parseMove input
 
