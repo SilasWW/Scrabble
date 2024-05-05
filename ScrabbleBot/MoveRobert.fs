@@ -50,22 +50,30 @@ module internal MoveRobert
                     (accDict, accWord, false)
             ) (dict, [], true) chars
 
-
+        let uint32ListToString (word: uint32 list) =
+            let alphabet = " ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+            List.fold (fun acc letterCode ->
+                if letterCode >= 1u && letterCode <= 26u then
+                    acc + string alphabet.[int letterCode]
+                else
+                    acc // Ignore invalid letter codes
+            ) "" word
+        
         // Modified GetAllPossibleWords to use initialized state
-        let rec GetAllPossibleWords (dict: Dictionary.Dict) (remainingLetters: uint32 list) (currentWord: list<uint32>) =
+        let rec GetAllPossibleWords (dict: Dictionary.Dict) (remainingLetters: uint32 list) (currentWord: uint32 list) =
             if (uint32 currentWord.Length) >= maxLengthOfWord then ([currentWord], true) else
-            let (words, valid) =
-                List.fold (fun (acc, valid) letter ->
-                    let IsWordFoundAndDict = Dictionary.step (fst (GetTuple (Map.find letter pieces))) dict
-                    match IsWordFoundAndDict with
-                    | Some (isWord, nextDict) ->
-                        let newWord = currentWord @ [letter]
-                        let newAcc = if isWord then newWord::acc else acc
-                        (newAcc @ (fst (GetAllPossibleWords nextDict (RemoveUsedLetterFromHand letter remainingLetters) newWord)), true)
-                    | None ->
-                        (acc, false)
-                ) ([], true) remainingLetters
-            (words, valid && List.length words > 0) 
+                let (words, valid) =
+                    List.fold (fun (acc, valid) letter ->
+                        let IsWordFoundAndDict = step (fst (GetTuple (Map.find letter pieces))) dict
+                        match IsWordFoundAndDict with
+                        | Some (isWord, nextDict) ->
+                            let newWord = currentWord @ [letter]
+                            let newAcc = if isWord then newWord::acc else acc
+                            (newAcc @ (fst (GetAllPossibleWords nextDict (RemoveUsedLetterFromHand letter remainingLetters) newWord)), true)
+                        | None ->
+                            (acc, false)
+                    ) ([], true) remainingLetters
+                (words, valid && List.length words > 0)
 
         // Adjust the starting point of possible words
         // prinft "\n1 \n"
@@ -92,7 +100,22 @@ module internal MoveRobert
                     else 
                         (possibleWords |> List.map (fun word -> List.skip (List.length startingChars) word), true)
 
-                
+                let rec filterValidWords (dict: Dictionary.Dict) (possibleWords: list<list<uint32>> * bool) =
+                    match possibleWords with
+                    | [], _ -> ([], false)
+                    | word::rest, valid ->
+                        let wordString = uint32ListToString word
+                        let isValidWord = lookup wordString dict
+                        if isValidWord then
+                            let (validWords, allValid) = filterValidWords dict (rest, valid)
+                            (word :: validWords, allValid)
+                        else
+                            let (validWords, allValid) = filterValidWords dict (rest, valid)
+                            (validWords, false)
+
+                let (filteredWords, allValid) = filterValidWords dict possibleWords
+
+
                 // prinft "\n1.2 \n"
 
                 let findLongestList (lists : List<List<uint32>>) =
@@ -116,13 +139,13 @@ module internal MoveRobert
                 
               
                 let longestWord = 
-                    let (possibleWords, isValid) = GetAllPossibleWords initializedDict (charactersOnHand |> List.filter (fun char -> not (List.contains char startingChars))) initialWord
+                    let mutable (possibleWords, isValid) = GetAllPossibleWords initializedDict (charactersOnHand |> List.filter (fun char -> not (List.contains char startingChars))) initialWord
                     if not isValid then 
                         ([], false)  // If no valid words are found, return empty and false
                     else
                         let mutable maxLength = 0
                         let mutable maxList = []
-                        for lst in possibleWords do
+                        for lst in filteredWords do
                             let length = List.length lst
                             if length > maxLength then
                                 maxLength <- length
@@ -234,7 +257,7 @@ module internal MoveRobert
                 //for word in possiblewords do
                     //// prinftn "word: %A" formattedWord
                 
-                // prinftn "WORD Returned: %A" formattedWord
+                printf "WORD Returned: %A" formattedWord
 
                 formattedWord)
 
