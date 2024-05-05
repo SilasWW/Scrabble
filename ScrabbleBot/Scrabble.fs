@@ -129,10 +129,16 @@ module Scrabble =
                     //should loop through the startinginfo list instead of just setting .head
                     let input = MoveRobert.RobertsFirstMove (State.hand st) (State.board st) letters pieces st.dict st.playedLetters (State.board st).center (1,0) (StartingInfo)
                     //let input = System.Console.ReadLine()
-                    let move = RegEx.parseMove input
-
-                    debugPrint (sprintf "Player %d -> Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
-                    send cstream (SMPlay move)
+                    printfn "TEST -- In between input and move"
+                    
+                    match input with
+                    | "pass" ->
+                        send cstream (SMPass)  // Send pass command
+                        forcePrint "Passing this turn due to no possible moves.\n"
+                    | _ ->
+                        let move = RegEx.parseMove input
+                        debugPrint (sprintf "Player %d -> Server:\n%A\n" (State.playerNumber st) move)
+                        send cstream (SMPlay move)
 
             let msg = recv cstream
             match msg with
