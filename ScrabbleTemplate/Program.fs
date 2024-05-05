@@ -38,7 +38,7 @@ let main argv =
     let handSize   = 7u
     let timeout    = None
     let tiles      = ScrabbleUtil.English.tiles 1u
-    let seed       =  Some 5 // this will be changed regularly
+    let seed       =  Some 4 // this will be changed regularly
     let port       = 13001
 
     let dictAPI =

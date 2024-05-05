@@ -125,9 +125,11 @@ module internal MoveRobert
                             if length > maxLength then
                                 maxLength <- length
                                 maxList <- lst
-                        if maxList.IsEmpty then 
+                        if maxList.IsEmpty then
+                            printfn "longestWord 1 - maxlist: %A" maxList
                             ([], false)  // No words found, return false
-                        else 
+                        else
+                            printfn "longestWord 2 - maxlist: %A" maxList
                             (maxList, true)  // Return the longest word found and true
                 
                 printf "\n2 \n"
@@ -146,7 +148,7 @@ module internal MoveRobert
 
                 // Add debugging output to trace function execution
                 let longestWordFormat (startCoord: coord) (direction: coord) (startingChars: uint32 list) (wordListWithCount: List<uint32> * int) : string =
-                    let alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                    let alphabet = "0ABCDEFGHIJKLMNOPQRSTUVWXYZ"
                     printf "\n2.1 \n"
                     let deltaX, deltaY = direction
                     let startX, startY = startCoord
@@ -161,18 +163,16 @@ module internal MoveRobert
                     
                     printf "\n2.4 \n"
 
+                    ///
                     let rec formatHelper acc (x, y) isFirstLetter = function
                         | [] -> String.concat " " (List.rev acc)
                         | hd::tl ->
                             let number = int hd 
-                            let letterIndex = number - 1  // Adjust index because 'A' = 1 in your system
+                            let letterIndex = number
                             if letterIndex < 0 || letterIndex >= alphabet.Length then
                                 printfn "this is just before a failwith. letterIndex is: %A" letterIndex
                                 failwith "Character index out of range"
                             let mutable letter = alphabet.[letterIndex]
-                            match letterIndex with
-                             | 0 -> letter <- alphabet.[1]
-                             | _ -> letter <- alphabet.[letterIndex]
                             let points = charNumberToPoints number  // Get corresponding points for the number
                             let formatted = sprintf "%d %d %d%c%d" x y number letter points  // Concatenate number and points after the letter
                             printf "\n2.5 \n"
@@ -218,6 +218,7 @@ module internal MoveRobert
                     match longestWord with
                     | wordList, true -> 
                         // If the operation was successful, format the word list for output
+                        printfn "wordList - from formattedWord: %A" wordList
                         longestWordFormat startCoord direction startingChars (wordList, List.length wordList)
                     | _, false -> 
                         // If the operation failed, return an error message directly
