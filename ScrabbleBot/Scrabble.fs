@@ -112,7 +112,7 @@ module Scrabble =
                 if st.playedLetters.Count = 0 then
                     // First move
                     //sets starter values, when its the first turn
-                    let StartingInfo = [((-1, 0), (1, 0), [], 7u)]
+                    let StartingInfo = ((0, 0), (1, 0), [], 7u)
                     let letters = MultiSet.toList (State.hand st)
                     let input = MoveRobert.RobertsFirstMove (State.hand st) (State.board st) letters pieces st.dict st.playedLetters (State.board st).center (1,0) (StartingInfo)
                     //let input = System.Console.ReadLine()
@@ -123,19 +123,40 @@ module Scrabble =
                 else
                     // Not first move
                     //sets starter values, when its the first turn
-                    let StartingInfo = MoveRobert.getAllStarters (List.fold (fun acc (coord, (id, (_, _))) -> Map.add coord id acc) st.CBoard State.moves) //To Chat-gpt: What do i put here?
+                    let StartingInfo = MoveRobert.getAllStarters (List.fold (fun acc (coord, (id, (_, _))) -> Map.add coord id acc) st.CBoard State.moves) 
+                    
                     let letters = MultiSet.toList (State.hand st)
+                    let mutable listOfWords = List.Empty
+                    for startingInfo in StartingInfo do 
+                        listOfWords <- MoveRobert.RobertsFirstMove (State.hand st) (State.board st) letters pieces st.dict st.playedLetters (State.board st).center (1,0) (startingInfo) :: listOfWords
 
+                    let spaceCount word = 
+                        word |> Seq.filter (fun c -> c = ' ') |> Seq.length
+
+                    let longestWord = 
+                        List.fold (fun longest word ->
+                            let longestSpaces = spaceCount longest
+                            let wordSpaces = spaceCount word
+                            if wordSpaces > longestSpaces then
+                                word
+                            else
+                                longest
+                        ) "" listOfWords
+
+                    
+                     
                     //should loop through the startinginfo list instead of just setting .head
-                    let input = MoveRobert.RobertsFirstMove (State.hand st) (State.board st) letters pieces st.dict st.playedLetters (State.board st).center (1,0) (StartingInfo)
+                    let input = longestWord
                     //let input = System.Console.ReadLine()
                     printfn "TEST -- In between input and move"
                     
                     match input with
                     | "pass" ->
+                        printf "WORD PLAYED: %A" input
                         send cstream (SMPass)  // Send pass command
                         forcePrint "Passing this turn due to no possible moves.\n"
                     | _ ->
+                        printf "WORD PLAYED: %A" input
                         let move = RegEx.parseMove input
                         debugPrint (sprintf "Player %d -> Server:\n%A\n" (State.playerNumber st) move)
                         send cstream (SMPlay move)
