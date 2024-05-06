@@ -23,12 +23,12 @@ let main argv =
     System.Console.Clear()
 
 //    let board        = ScrabbleUtil.StandardBoard.standardBoard ()
-    let board      = ScrabbleUtil.InfiniteBoard.infiniteBoard ()
+//    let board      = ScrabbleUtil.InfiniteBoard.infiniteBoard ()
 
 //    let board      = ScrabbleUtil.RandomBoard.randomBoard ()
 //    let board      = ScrabbleUtil.RandomBoard.randomBoardSeed (Some 42)
 //    let board      = ScrabbleUtil.InfiniteRandomBoard.infiniteRandomBoard ()
-//    let board      = ScrabbleUtil.InfiniteRandomBoard.infiniteRandomBoardSeed (Some 42)
+    let board      = ScrabbleUtil.InfiniteRandomBoard.infiniteRandomBoardSeed (Some 42)
 
 //    let board      = ScrabbleUtil.HoleBoard.holeBoard ()
 //    let board      = ScrabbleUtil.InfiniteHoleBoard.infiniteHoleBoard ()
@@ -50,8 +50,10 @@ let main argv =
         time (fun () -> ScrabbleUtil.Dictionary.mkDict words dictAPI)
         
     // Uncomment this line to call your client
-    let players   = [("Silas", dictionary, Oxyphenbutazone.Scrabble.startGame)
-                     ("Karl", dictionary, Robert.Scrabble.startGame)]
+    let players   = [("Silas", dictionary, Robert.Scrabble.startGame)
+                     ("Karl", dictionary, Robert.Scrabble.startGame)
+                     ("OXY1", dictionary, Oxyphenbutazone.Scrabble.startGame)
+                     ("OXY2", dictionary, Oxyphenbutazone.Scrabble.startGame)]
 
    
 
