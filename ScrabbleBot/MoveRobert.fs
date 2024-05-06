@@ -10,7 +10,7 @@ module internal MoveRobert
     open System.IO
     open ScrabbleUtil.DebugPrint
     
-    let RobertsFirstMove (hand : MultiSet<uint32>) (board : board) (charactersOnHand : uint32 list) pieces (dict : Dictionary.Dict) (playedLetters : Map<coord, (char * int)>) (coord : coord) (direction : (int * int)) (initStartingInfo : (coord * coord * uint32 list * uint32))=
+    let RobertsFirstMove (hand : MultiSet<uint32>) (board : board) (InitCharactersOnHand : uint32 list) pieces (dict : Dictionary.Dict) (playedLetters : Map<coord, (char * int)>) (coord : coord) (direction : (int * int)) (initStartingInfo : (coord * coord * uint32 list * uint32))=
             
         //print the how many letters have been played
         // prinft "PlayedLetters.Count = %A words" playedLetters.Count
@@ -18,6 +18,8 @@ module internal MoveRobert
         //let rand = new System.Random()
         //let randomIndex = rand.Next(initStartingInfo.Length)
         //let StartingInfo = initStartingInfo.[randomIndex]
+        
+        let charactersOnHand = InitCharactersOnHand |> List.filter (fun x -> x <> 0u)
 
         let StartingInfo = initStartingInfo
 
@@ -42,21 +44,19 @@ module internal MoveRobert
         let InitializeWithStartingChars (dict: Dictionary.Dict) (chars: list<uint32>) =
             List.fold (fun (accDict, accWord, success) char ->
                 match Dictionary.step (fst (GetTuple (Map.find char pieces))) accDict with
-                | Some (_, nextDict) -> 
-                    // prinftn "Step successful for character %A" char
+                | Some (_, nextDict) ->
                     (nextDict, accWord @ [char], true)
                 | None -> 
-                    // prinftn "Step failed for character %A" char
                     (accDict, accWord, false)
             ) (dict, [], true) chars
 
         let uint32ListToString (word: uint32 list) =
             let alphabet = " ABCDEFGHIJKLMNOPQRSTUVWXYZ"
             List.fold (fun acc letterCode ->
-                if letterCode >= 1u && letterCode <= 26u then
+                if letterCode >= 0u && letterCode <= 26u then
                     acc + string alphabet.[int letterCode]
                 else
-                    acc // Ignore invalid letter codes
+                    "pass" // Ignore invalid letter codes
             ) "" word
         
         // Modified GetAllPossibleWords to use initialized state
@@ -257,7 +257,7 @@ module internal MoveRobert
                 //for word in possiblewords do
                     //// prinftn "word: %A" formattedWord
                 
-                printf "WORD Returned: %A" formattedWord
+                //printf "WORD Returned: %A" formattedWord
 
                 formattedWord)
 
@@ -382,15 +382,20 @@ module internal MoveRobert
             if belowPredicate c && abovePredicate c then
                 [ (c, ((0, -1): coord), [ Map.find c boardMap ], getRevVerticalLength c 0u) ]
             else if belowPredicate c && not (abovePredicate c) then
+                //if (List.contains (fst c, snd c - 1) keys)
+                printf "HERE 1: %A" (getLettersBelowCoord c [ Map.find c boardMap ])
                 [ (c, ((0, -1): coord), getLettersBelowCoord c [ Map.find c boardMap ], getRevVerticalLength c 0u) ]
             else
                 []
-        
         let rec horizontalPredicateHandler (c: coord) =
             //If both above and below is clear, return list with starter for down direction (Can be extended to both up and down direction if we want to look for both).
             if rightPredicate c && leftPredicate c then
+                printfn "1 - coord: %A" c
+                printfn "mapFind: %A" (Map.find c boardMap)
+                printf "HERE 3: %A" (getLettersBelowCoord c [ Map.find c boardMap ])
                 [ (c, ((1, 0): coord), [ Map.find c boardMap ], getHorizontalLength c 0u) ]
             else if rightPredicate c && not (leftPredicate c) then
+                printf "HERE 2: %A" (getLettersBelowCoord c [ Map.find c boardMap ])
                 [ (c, ((1, 0): coord), getLettersLeftOfCoord c [ Map.find c boardMap ], getHorizontalLength c 0u) ]
             else
                 []
@@ -398,6 +403,9 @@ module internal MoveRobert
         let rec reverseHorizontalPredicateHandler (c: coord) =
             //If both above and below is clear, return list with starter for down direction (Can be extended to both up and down direction if we want to look for both).
             if rightPredicate c && leftPredicate c then
+                printfn "2 - coord: %A" c
+                printfn "mapFind: %A" (Map.find c boardMap)
+                printf "HERE 4: %A" (getLettersBelowCoord c [ Map.find c boardMap ])
                 [ (c, ((-1, 0): coord), [ Map.find c boardMap ], getRevHorizontalLength c 0u) ]
             else if rightPredicate c && not (leftPredicate c) then
                 [ (c, ((-1, 0): coord), getLettersRightOfCoord c [ Map.find c boardMap ], getRevHorizontalLength c 0u) ]

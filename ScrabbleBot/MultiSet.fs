@@ -14,9 +14,19 @@
 
     let numItems (a: 'a) (R(s) : MultiSet<'a>) = Map.tryFind a s |> Option.defaultValue 0u
 
-    let add (a : 'a) (n : uint32) (R(s) : MultiSet<'a>) : MultiSet<'a> = R(s.Add(a,((numItems a (R(s))) + n)))
+    let add (key : 'a) (num : uint32) (R map : MultiSet<'a>) : MultiSet<'a> =
+        let updatedMap =
+            match Map.tryFind key map with
+            | Some count -> Map.add key (count + num) map
+            | None -> Map.add key num map
+        R updatedMap
 
-    let addSingle (a: 'a) (R(s): MultiSet<'a>) : MultiSet<'a> = R (s.Add(a,1u))
+    let addSingle (key : 'a) (R map : MultiSet<'a>) : MultiSet<'a> =
+        let updatedMap =
+            match Map.tryFind key map with
+            | Some count -> Map.add key (count + 1u) map
+            | None -> Map.add key 1u map
+        R updatedMap
 
     let remove (a : 'a) (n: uint32) (R(s) : MultiSet<'a>) =
         let element = (Map.tryFind a s) |> Option.defaultValue (0u)

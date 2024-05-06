@@ -74,10 +74,10 @@ module State =
         ) state moves
     
     
-    let mutable moves : (coord * (uint32 * (char * int))) list = [(0,0), (0u, ('a',0))]
+    let moves : (coord * (uint32 * (char * int))) list = [(0,0), (0u, ('a',0))]
     
-    let UpdateMoves ms=
-        moves <- ms
+    //let UpdateMoves ms=
+        //moves <- ms
     let updateHand ms st newPieces =
                 // get a multiset of the indexes (uint) of the tiles you played
                 let playedIndexes = 
@@ -88,9 +88,12 @@ module State =
                         ) 
                     |> Seq.toList 
                     |> MultiSet.ofList
+                    
+                printf "playedIndex: %A" playedIndexes
 
                 // remove played tiles from your hand
                 let subtractedHand = MultiSet.subtract (hand st) playedIndexes
+                printfn "subtractedHand: %A" subtractedHand
 
                 // add the new tiles to your hand
                 List.fold (fun acc (indexOfLetter, letterCount) -> 
@@ -101,7 +104,7 @@ module Scrabble =
 
     let playGame cstream pieces (st : State.state) =
 
-        let rec aux (st : State.state) (myTurn: bool) =
+        let rec aux (st : State.state) (myTurn: bool) (ms: (coord * (uint32 * (char * int))) list) =
             if (myTurn) then
                 forcePrint "-------------------- Here is your hand ---------------------\n\n" 
                 Print.printHand pieces (State.hand st)
@@ -123,7 +126,7 @@ module Scrabble =
                 else
                     // Not first move
                     //sets starter values, when its the first turn
-                    let StartingInfo = MoveRobert.getAllStarters (List.fold (fun acc (coord, (id, (_, _))) -> Map.add coord id acc) st.CBoard State.moves) 
+                    let StartingInfo = MoveRobert.getAllStarters (List.fold (fun acc (coord, (id, (_, _))) -> Map.add coord id acc) st.CBoard ms) 
                     
                     let letters = MultiSet.toList (State.hand st)
                     let mutable listOfWords = List.Empty
@@ -155,6 +158,10 @@ module Scrabble =
                         printf "WORD PLAYED: %A" input
                         send cstream (SMPass)  // Send pass command
                         forcePrint "Passing this turn due to no possible moves.\n"
+                    | "" ->
+                        printf "WORD PLAYED: %A" input
+                        send cstream (SMPass)  // Send pass command
+                        forcePrint "Passing this turn due to no possible moves.\n"
                     | _ ->
                         printf "WORD PLAYED: %A" input
                         let move = RegEx.parseMove input
@@ -166,7 +173,7 @@ module Scrabble =
             | RCM (CMPlaySuccess(ms, points, newPieces)) ->
                 (* Successful play by you. Update your state (remove old tiles, add the new ones, change turn, etc) *)
                
-               State.UpdateMoves ms
+               //State.UpdateMoves ms
                
                // Update playedLetters with new moves
                forcePrint "-------------------- Successful play by you ---------------------\n"
@@ -178,7 +185,7 @@ module Scrabble =
                // Update the state
                let newState = State.mkState (State.board st) (State.dict st) (State.playerNumber st) (State.numberofplayers st) (State.playerTurn st) newHand updatedStateLetters.playedLetters (State.CBoard st)
 
-               aux newState (st.playerNumber % st.numberofplayers + 1u = st.playerNumber)
+               aux newState (st.playerNumber % st.numberofplayers + 1u = st.playerNumber) ms
             | RCM (CMPlayed (pid, ms, points)) ->
                 (* Successful play by other player. Update your state *)
                 printf "-------------------- Word Played by CMPlayed ---------------------\n"
@@ -188,20 +195,20 @@ module Scrabble =
 
                 let newState = State.mkState (State.board st) (State.dict st) (State.playerNumber st) (State.numberofplayers st) (State.playerTurn st) (State.hand st) updatedStateLetters.playedLetters (State.CBoard st)
 
-                aux newState (pid % st.numberofplayers + 1u = st.playerNumber)
+                aux newState (pid % st.numberofplayers + 1u = st.playerNumber) ms
             | RCM (CMPassed (pid)) ->
                 debugPrint (sprintf "-------------------- Word Passed byCMPlayed  ---------------------\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n")
-                aux st (pid % st.numberofplayers + 1u = st.playerNumber)
+                aux st (pid % st.numberofplayers + 1u = st.playerNumber) ms
             | RCM (CMPlayFailed (pid, ms)) ->
                 (* Failed play. Update your state *)
                 //let st' = st // This state needs to be updated
-                aux st (pid % st.numberofplayers + 1u = st.playerNumber)
+                aux st (pid % st.numberofplayers + 1u = st.playerNumber) ms
             | RCM (CMGameOver _) -> ()
             | RCM a -> failwith (sprintf "not implmented: %A" a)
-            | RGPE err -> printfn "Gameplay Error:\n%A" err; aux st false
+            | RGPE err -> printfn "Gameplay Error:\n%A" err; aux st false ms
 
 
-        aux st (st.playerTurn = st.playerNumber)
+        aux st (st.playerTurn = st.playerNumber) [(0,0), (0u, ('a',0))]
 
     let startGame 
             (boardP : boardProg) 
