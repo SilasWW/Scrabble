@@ -1,4 +1,36 @@
-# Scrabble
-This is repo for a Scrabble clone, implemented in F#, for a university course in Functional Programming in F#.
+# Scrabble Project
 
-Jeg er overbevist om, at den her branch kun har halting issues, ved wildcard. Den vælger dog et tilfældigt element in startinginfo, hvilket ikke halter længere, for der er kommet bedre error-handling på, men der er forholdsvist mange skippede runder, formentlig i stor grad af denne grund. Dog kun halting ved wildcards (tror jeg). 
+## Created by: 
+- Karl Gustav Løhr (kagl@itu.dk)
+- Sebastian Graakjær Blok (segb@itu.dk)
+- Silas Wolff (siwo@itu.dk)
+
+### Multiplayer - YES:
+We can add several of our bots, Oxy or a combination.
+
+### Dictionary - YES:
+We have implemented a **Trie**. It is implemented in Dictionary.fs and and Dictionary.fsi
+
+### Finish on all boards - YES:
+We are able to finish a game on all boards. Some boards and seeds will give prettier games and/or better results than others. 
+
+### Parallelism - NO:
+N/A
+
+### Respect the timeout flag - NO:
+N/A
+
+## Running the program:
+
+Make sure you are in ´ScrabbleTemplate´:
+
+```bash
+cd ScrabbleTemplate
+```
+
+Then run the program with the following command:
+
+```bash
+dotnet run
+```
+
