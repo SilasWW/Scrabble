@@ -89,18 +89,92 @@ module State =
                     |> Seq.toList 
                     |> MultiSet.ofList
                     
-                printf "playedIndex: %A" playedIndexes
+                //printf "playedIndex: %A" playedIndexes
 
                 // remove played tiles from your hand
                 let subtractedHand = MultiSet.subtract (hand st) playedIndexes
-                printfn "subtractedHand: %A" subtractedHand
+                //printfn "subtractedHand: %A" subtractedHand
 
                 // add the new tiles to your hand
                 List.fold (fun acc (indexOfLetter, letterCount) -> 
                 MultiSet.add indexOfLetter letterCount acc) subtractedHand newPieces
+    
+    let updateCustomBoard ms boardMap =
+        List.fold (fun acc (coord, (id, (_, _))) -> Map.add coord id acc) boardMap ms
+
+
+    let charToUint char = 
+        if (char = '?') then 0u
+        else uint32(System.Char.ToUpper(char)) - 64u
+    
+    let charNumberToPoints (char: int) = 
+            match char with
+            | 17 | 26                                       -> 10
+            | 10 | 24                                       -> 8
+            | 11                                            -> 5
+            | 6 | 8 | 22 | 23 | 25                          -> 4
+            | 2 | 3 | 13 | 16                               -> 3
+            | 4 | 7                                         -> 2
+            | 1 | 5 | 9 | 12 | 14 | 15 | 18 | 19 | 20 | 21  -> 1
+            | 0                                             -> 0
+            | _                                             -> failwith "can't convert uint"
+
+    // Returns list of starters. A starter is a word we can play that starts at the given coord. 
+    // The form is (word, (coord, direction))
+    let wordLookup playedLetters = 
+        let directionalWordLookup playedLetters dir =
+            let getExistingWord (coord:coord) (direction: coord) (playedLetters: Map<coord, char * int>) =                
+                let rec recursivelyMoveInDir (coord:coord) (direction: coord) (playedLetters: Map<coord, char * int>) acc =
+                    let (x, y) = coord
+                    let (dx, dy) = direction
+
+                    // Check next coord, if there is a letter
+                    let newCoord = (x + dx, y + dy)
+                    match Map.tryFind newCoord playedLetters with
+                    | None -> 
+                        // If we hit an empty square, return the word
+                        acc
+                    | Some (letter, _) -> 
+                        // If we hit a letter, recursively move in the same direction
+                        recursivelyMoveInDir newCoord direction playedLetters (acc + string letter)
+                
+                // Check if letter is in middle of word
+                let (x, y) = coord
+                let (dx, dy) = direction
+                let checkPrevious = (x - dx, y - dy)
+                match Map.tryFind checkPrevious playedLetters with
+                | None ->
+                    // If none, then we can move in the direction (because we are at the start of the word)) 
+                    let letter = (fst(Map.find coord playedLetters))
+                    Some (recursivelyMoveInDir coord direction playedLetters (string letter))
+                | Some _ -> 
+                    // If there is a letter, then we are in the middle of a word.
+                    None
+
+            // Get the existing word in the given direction.
+            Map.fold (fun (acc:List<(string * (coord * coord))>) (coord:coord) ((letter, _): char * int) -> 
+                let existingWord = getExistingWord coord dir playedLetters
+                match existingWord with
+                | Some word -> 
+                    // If we found a word, add it to the list
+                    (word, (coord, dir)) :: acc
+                | None -> 
+                    // If we didn't find a word, return the list
+                    acc
+                ) [] playedLetters
+
+        // Get the existing words right and down direction.
+        let downWords = directionalWordLookup playedLetters (0,1)
+        let rightWords = directionalWordLookup playedLetters (1,0)
+        
+        // Merge the two lists
+        downWords @ rightWords
+
+
 
 module Scrabble =
     open System.Threading
+    open MoveRobert
 
     let playGame cstream pieces (st : State.state) =
 
@@ -117,9 +191,9 @@ module Scrabble =
                     //sets starter values, when its the first turn
                     let StartingInfo = ((0, 0), (1, 0), [], 7u)
                     let letters = MultiSet.toList (State.hand st)
-                    let input = MoveRobert.RobertsFirstMove (State.hand st) (State.board st) letters pieces st.dict st.playedLetters (State.board st).center (1,0) (StartingInfo)
+                    let input = MoveRobert.RobertsFirstMove(State.hand st) (State.board st) letters pieces st.dict st.playedLetters (State.board st).center (1,0) (StartingInfo)
                     //let input = System.Console.ReadLine()
-                    let move = RegEx.parseMove input
+                    let move = RegEx.parseMove (input)
 
                     debugPrint (sprintf "Player %d -> Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
                     send cstream (SMPlay move)
@@ -130,11 +204,73 @@ module Scrabble =
                     
                     let letters = MultiSet.toList (State.hand st)
                     let mutable listOfWords = List.Empty
-                    for startingInfo in StartingInfo do 
+
+                    // Convert allStartingPoints and uniqueStartingChars into a list of tuples
+                    let startingInfoList = 
+                        List.map (fun (coord, direction, chars, length) -> (coord, direction, chars, length)) StartingInfo
+
+                    for startingInfo in startingInfoList do 
                         listOfWords <- MoveRobert.RobertsFirstMove (State.hand st) (State.board st) letters pieces st.dict st.playedLetters (State.board st).center (1,0) (startingInfo) :: listOfWords
 
+                    //let stateWithInsertedMove = State.insertMovesIntoState ms st
+                    //let everyWordOnTheBoardInStateWithInsertedMove = State.wordLookup stateWithInsertedMove.playedLetters
+
+                    let stateValid (word: string) (boardWords: (string * (coord * coord)) list) =
+                        // Extract the letters from the boardWords
+                        let lettersOnBoard = [ for (existingWord, _) in boardWords -> existingWord |> Seq.toList ]
+                                            |> List.concat
+
+                        // Check if each letter in the word exists in the letters on the board
+                        let lettersMatch = word |> Seq.forall (fun letter -> List.contains letter lettersOnBoard)
+
+                        // Return true if all letters in the word can be found on the board
+                        lettersMatch
+
+
+
+                    //printf "LISTOFWORDS: %A" listOfWords
+
+                    let validWordsList =
+                        listOfWords
+                        |> List.choose (fun word ->
+                            let stateWithInsertedMove = State.insertMovesIntoState (RegEx.parseMove word) st
+                            let everyWordOnTheBoardInStateWithInsertedMove = State.wordLookup stateWithInsertedMove.playedLetters
+                            let stateValid =
+                                List.fold (fun (stateValidity:bool) (key:string, _) ->
+                                    if stateValidity then
+                                        if key.Length = 1 then
+                                            true
+                                        elif Dictionary.lookup key st.dict then
+                                            true
+                                        else
+                                            false
+                                    else
+                                        false
+                                ) true everyWordOnTheBoardInStateWithInsertedMove
+                            if stateValid then
+                                Some word // Keep the word
+                            else
+                                None // Discard the word
+                        )
+
+                    
+                    //printf "VALIDATEDWORDSLIST: %A" validWordsList
+
+
+
+                    //let result =
+                    // if stateValid then
+                    //     word :: validWords
+                    //     validWords
+                    // else
+                    //     validWords
+                    
                     let spaceCount word = 
                         word |> Seq.filter (fun c -> c = ' ') |> Seq.length
+
+                    let formattedWords = validWordsList 
+
+                    //printf "LISTOFWORDS: %A" listOfWords
 
                     let longestWord = 
                         List.fold (fun longest word ->
@@ -144,7 +280,7 @@ module Scrabble =
                                 word
                             else
                                 longest
-                        ) "" listOfWords
+                        ) "" (formattedWords)
 
                     
                      
@@ -174,7 +310,10 @@ module Scrabble =
                 (* Successful play by you. Update your state (remove old tiles, add the new ones, change turn, etc) *)
                
                //State.UpdateMoves ms
-               
+            
+               let updateCustomBoard = State.updateCustomBoard ms st.CBoard
+
+
                // Update playedLetters with new moves
                forcePrint "-------------------- Successful play by you ---------------------\n"
                let updatedStateLetters = State.insertMovesIntoState ms st
@@ -183,7 +322,7 @@ module Scrabble =
                let newHand = State.updateHand ms st newPieces
 
                // Update the state
-               let newState = State.mkState (State.board st) (State.dict st) (State.playerNumber st) (State.numberofplayers st) (State.playerTurn st) newHand updatedStateLetters.playedLetters (State.CBoard st)
+               let newState = State.mkState (State.board st) (State.dict st) (State.playerNumber st) (State.numberofplayers st) (State.playerTurn st) newHand updatedStateLetters.playedLetters (updateCustomBoard)
 
                aux newState (st.playerNumber % st.numberofplayers + 1u = st.playerNumber) ms
             | RCM (CMPlayed (pid, ms, points)) ->

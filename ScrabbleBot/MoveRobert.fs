@@ -40,15 +40,6 @@ module internal MoveRobert
             | Some(i) -> List.removeAt i charactersOnHand
             | None -> charactersOnHand
         
-        // Helper function to process starting characters into a valid initial dictionary state
-        let InitializeWithStartingChars (dict: Dictionary.Dict) (chars: list<uint32>) =
-            List.fold (fun (accDict, accWord, success) char ->
-                match Dictionary.step (fst (GetTuple (Map.find char pieces))) accDict with
-                | Some (_, nextDict) ->
-                    (nextDict, accWord @ [char], true)
-                | None -> 
-                    (accDict, accWord, false)
-            ) (dict, [], true) chars
 
         let uint32ListToString (word: uint32 list) =
             let alphabet = " ABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -58,6 +49,17 @@ module internal MoveRobert
                 else
                     "pass" // Ignore invalid letter codes
             ) "" word
+        
+        // Helper function to process starting characters into a valid initial dictionary state
+        let InitializeWithStartingChars (dict: Dictionary.Dict) (chars: list<uint32>) =
+            //printf "S: %A" (uint32ListToString chars)
+            List.fold (fun (accDict, accWord, success) char ->
+                match Dictionary.step (fst (GetTuple (Map.find char pieces))) accDict with
+                | Some (_, nextDict) ->
+                    (nextDict, accWord @ [char], true)
+                | None -> 
+                    (accDict, accWord, false)
+            ) (dict, [], true) chars
         
         // Modified GetAllPossibleWords to use initialized state
         let rec GetAllPossibleWords (dict: Dictionary.Dict) (remainingLetters: uint32 list) (currentWord: uint32 list) =
@@ -78,27 +80,27 @@ module internal MoveRobert
         // Adjust the starting point of possible words
         // prinft "\n1 \n"
         let _, _, startingChars, _ = StartingInfo
-
+        
         // prinft "\n1.1.1 %A\n" startingChars
 
-        let initializedDict, initialWord, isValidInit = InitializeWithStartingChars dict startingChars
+        let (initializedDict: Dict), (initialWord: uint32 list), isValidInit = InitializeWithStartingChars dict startingChars
         // prinft "\n1.1.2 \n"
         if not isValidInit then "pass"
         else 
-            let possibleWords = GetAllPossibleWords initializedDict (charactersOnHand |> List.filter (fun char -> not (List.contains char startingChars))) initialWord
+            let possibleWords = GetAllPossibleWords dict (charactersOnHand |> List.filter (fun char -> not (List.contains char startingChars))) initialWord
             // prinft "\n1.1.3 \n"
-                    
+            
             match possibleWords with
             | _, false -> "pass"
             | words, true -> (
                 
                 // Adjust the possible words to remove the startingChars from each word
-                let adjustedWords = 
-                    let (possibleWords, isValid) = GetAllPossibleWords initializedDict (charactersOnHand |> List.filter (fun char -> not (List.contains char startingChars))) initialWord
-                    if not isValid then 
-                        ([], false)
-                    else 
-                        (possibleWords |> List.map (fun word -> List.skip (List.length startingChars) word), true)
+                // let adjustedWords = 
+                //     let (possibleWords, isValid) = GetAllPossibleWords initializedDict (charactersOnHand |> List.filter (fun char -> not (List.contains char startingChars))) initialWord
+                //     if not isValid then 
+                //         ([], false)
+                //     else 
+                //         (possibleWords |> List.map (fun word -> List.skip (List.length startingChars) word), true)
 
                 let rec filterValidWords (dict: Dictionary.Dict) (possibleWords: list<list<uint32>> * bool) =
                     match possibleWords with
@@ -263,6 +265,7 @@ module internal MoveRobert
 
   
     //Takes the boardMap, finds all vertical starters, and returns them as a list of truples: (coord:StartingPointOfStarter, coord:Direction, list<uint32>:ListOfTilesBeforeStarter)
+
     let getAllStarters (boardMap: Map<coord, uint32>) : (coord * coord * (uint32) list * uint32) list =
         let keys = (boardMap.Keys |> Seq.cast |> List.ofSeq)
         //If tile above c is clear return true, else return false
@@ -383,19 +386,19 @@ module internal MoveRobert
                 [ (c, ((0, -1): coord), [ Map.find c boardMap ], getRevVerticalLength c 0u) ]
             else if belowPredicate c && not (abovePredicate c) then
                 //if (List.contains (fst c, snd c - 1) keys)
-                printf "HERE 1: %A" (getLettersBelowCoord c [ Map.find c boardMap ])
+                //printf "HERE 1: %A" (getLettersBelowCoord c [ Map.find c boardMap ])
                 [ (c, ((0, -1): coord), getLettersBelowCoord c [ Map.find c boardMap ], getRevVerticalLength c 0u) ]
             else
                 []
         let rec horizontalPredicateHandler (c: coord) =
             //If both above and below is clear, return list with starter for down direction (Can be extended to both up and down direction if we want to look for both).
             if rightPredicate c && leftPredicate c then
-                printfn "1 - coord: %A" c
-                printfn "mapFind: %A" (Map.find c boardMap)
-                printf "HERE 3: %A" (getLettersBelowCoord c [ Map.find c boardMap ])
+                //printfn "1 - coord: %A" c
+                //printfn "mapFind: %A" (Map.find c boardMap)
+                //printf "HERE 3: %A" (getLettersBelowCoord c [ Map.find c boardMap ])
                 [ (c, ((1, 0): coord), [ Map.find c boardMap ], getHorizontalLength c 0u) ]
             else if rightPredicate c && not (leftPredicate c) then
-                printf "HERE 2: %A" (getLettersBelowCoord c [ Map.find c boardMap ])
+                // "HERE 2: %A" (getLettersBelowCoord c [ Map.find c boardMap ])
                 [ (c, ((1, 0): coord), getLettersLeftOfCoord c [ Map.find c boardMap ], getHorizontalLength c 0u) ]
             else
                 []
@@ -403,9 +406,9 @@ module internal MoveRobert
         let rec reverseHorizontalPredicateHandler (c: coord) =
             //If both above and below is clear, return list with starter for down direction (Can be extended to both up and down direction if we want to look for both).
             if rightPredicate c && leftPredicate c then
-                printfn "2 - coord: %A" c
-                printfn "mapFind: %A" (Map.find c boardMap)
-                printf "HERE 4: %A" (getLettersBelowCoord c [ Map.find c boardMap ])
+                //printfn "2 - coord: %A" c
+                //printfn "mapFind: %A" (Map.find c boardMap)
+                //printf "HERE 4: %A" (getLettersBelowCoord c [ Map.find c boardMap ])
                 [ (c, ((-1, 0): coord), [ Map.find c boardMap ], getRevHorizontalLength c 0u) ]
             else if rightPredicate c && not (leftPredicate c) then
                 [ (c, ((-1, 0): coord), getLettersRightOfCoord c [ Map.find c boardMap ], getRevHorizontalLength c 0u) ]
