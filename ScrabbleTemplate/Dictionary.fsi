@@ -1,11 +1,11 @@
 ﻿module internal Dictionary
 
-    type Dict
+    type Trie
 
-    val empty : unit -> Dict
+    val emptyTrie : unit -> Trie
 
-    val insert : string -> Dict -> Dict
+    val insertTrie : string -> Trie -> Trie
 
-    val lookup : string -> Dict -> bool
+    val lookupTrie : string -> Trie -> bool
 
-    val step : char -> Dict -> (bool * Dict) option
+    val stepintoTrie : char -> Trie -> (bool * Trie) option

@@ -1,60 +1,53 @@
 ﻿module internal Dictionary
 
-    type Dict =
-        | Leaf of bool //(* empty csDict)
-        | Node of bool * System.Collections.Generic.Dictionary<char, Dict> 
+    type Trie =
+        | Leaf of bool
+        | Node of bool * System.Collections.Generic.Dictionary<char, Trie>
 
-    type csDict = System.Collections.Generic.Dictionary<char, Dict> 
+    type TrieDictionary = System.Collections.Generic.Dictionary<char, Trie>
 
-    let empty () = Leaf false
+    let emptyTrie () = Leaf false
 
-    let rec insert (word: string) =
+    let rec insertTrie (word: string) =
         function
         | Leaf _ when word.Length = 0 -> Leaf true
-        | Node (_, csDict) when word.Length = 0 -> Node(true, csDict)
-        | Leaf b  -> 
-            let tmp = csDict ()
-            let c = word.[0]
-            tmp.[c] <- insert word.[1..] (empty ())
-            Node(b, tmp)
-        | Node (b, dic) ->
-            let c = word.[0]
+        | Node (_, trieDict) when word.Length = 0 -> Node(true, trieDict)
+        | Leaf isLeaf  -> 
+            let tmpDict = TrieDictionary ()
+            let charToAdd = word.[0]
+            tmpDict.[charToAdd] <- insertTrie word.[1..] (emptyTrie ())
+            Node(isLeaf, tmpDict)
+        | Node (isNode, dict) ->
+            let charToAdd = word.[0]
 
-            match dic.TryGetValue c with
+            match dict.TryGetValue charToAdd with
             | (true, value) ->
-                dic.[c] <- insert word.[1..] value
-                Node(b, dic)
+                dict.[charToAdd] <- insertTrie word.[1..] value
+                Node(isNode, dict)
             | (false, _)    ->
-                dic.[c] <- insert word.[1..] (empty())
-                Node(b, dic)
+                dict.[charToAdd] <- insertTrie word.[1..] (emptyTrie())
+                Node(isNode, dict)
     
 
-    let rec lookup (word: string) =
+    let rec lookupTrie (word: string) =
         function
-       
-        | Leaf b when word.Length = 0 -> b
+        | Leaf isLeaf when word.Length = 0 -> isLeaf
         | Leaf _ -> false
 
-       
-        | Node (b, _) when word.Length = 0 -> b
+        | Node (isNode, _) when word.Length = 0 -> isNode
      
-        | Node (b, dic) ->
-            match dic.TryGetValue word.[0] with
-            | (true, value) -> lookup word.[1..] value
+        | Node (isNode, dict) ->
+            match dict.TryGetValue word.[0] with
+            | (true, value) -> lookupTrie word.[1..] value
             | (false, _) -> false
 
-    let step (c: char) =
+    let stepintoTrie (c: char) =
         function
-        | Node (_, dic) ->
-            match dic.TryGetValue c with
+        | Node (_, dict) ->
+            match dict.TryGetValue c with
             | (true, value) -> 
                 match value with
                 | Leaf b -> Some (b, value)
                 | Node (b, _) -> Some (b, value)
             | (false, _) -> None
         | Leaf _ -> None
-    
-
-
-
-

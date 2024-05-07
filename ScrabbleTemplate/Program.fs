@@ -23,35 +23,37 @@ let main argv =
     System.Console.Clear()
 
 //    let board        = ScrabbleUtil.StandardBoard.standardBoard ()
-//    let board      = ScrabbleUtil.InfiniteBoard.infiniteBoard ()
+    let board      = ScrabbleUtil.InfiniteBoard.infiniteBoard ()
 
 //    let board      = ScrabbleUtil.RandomBoard.randomBoard ()
 //    let board      = ScrabbleUtil.RandomBoard.randomBoardSeed (Some 42)
 //    let board      = ScrabbleUtil.InfiniteRandomBoard.infiniteRandomBoard ()
-    let board      = ScrabbleUtil.InfiniteRandomBoard.infiniteRandomBoardSeed (Some 42)
+//    let board      = ScrabbleUtil.InfiniteRandomBoard.infiniteRandomBoardSeed (Some 42)
 
 //    let board      = ScrabbleUtil.HoleBoard.holeBoard ()
 //    let board      = ScrabbleUtil.InfiniteHoleBoard.infiniteHoleBoard ()
 
-    let words     = readLines "Dictionaries/English.txt"
+    let words     = readLines "../../../Dictionaries/English.txt"
 
     let handSize   = 7u
     let timeout    = None
     let tiles      = ScrabbleUtil.English.tiles 1u
-    let seed       = Some 42 // this will be changed regularly
+    let seed       = Some 5 // this will be changed regularly
     let port       = 13001
 
     let dictAPI =
         // Uncomment if you have implemented a dictionary. last element None if you have not implemented a GADDAG
-         Some (Dictionary.empty, Dictionary.insert, Dictionary.step, None) 
+         Some (Dictionary.emptyTrie, Dictionary.insertTrie, Dictionary.stepintoTrie, None) 
         //None
 
     let (dictionary, time) =
         time (fun () -> ScrabbleUtil.Dictionary.mkDict words dictAPI)
         
     // Uncomment this line to call your client
-    let players   = [("Silas", dictionary, Oxyphenbutazone.Scrabble.startGame)
-                     ("Karl", dictionary, Robert.Scrabble.startGame)]
+    let players   = [("Oxy1", dictionary, Oxyphenbutazone.Scrabble.startGame)
+                     ("Robert1", dictionary, Robert.Scrabble.startGame)
+                     ("Oxy2", dictionary, Oxyphenbutazone.Scrabble.startGame)
+                     ("Robert2", dictionary, Robert.Scrabble.startGame)]
 
    
 

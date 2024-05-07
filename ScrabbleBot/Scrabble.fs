@@ -65,6 +65,8 @@ module State =
     let numberofplayers st = st.numberofplayers
     let CBoard st = st.CBoard
 
+
+    //sends moves into the state
     let MovesIntoState (moves:list<coord * (uint32 * (char * int))>) (state:state) =
        List.fold (fun acc move ->
            let (coord, (_,(character, characterPoints))) = move
@@ -72,6 +74,7 @@ module State =
            mkState acc.board acc.dict acc.playerNumber acc.numberofplayers acc.playerTurn acc.hand newPlayedLetters acc.CBoard
         ) state moves
     
+    //after each turn, we update out hand to get the new tiles needed to be a 7 tiles aways
     let updateHand ms st newPieces =
                 let playedIndexes = 
                     ms
@@ -87,11 +90,11 @@ module State =
                 List.fold (fun acc (indexOfLetter, letterCount) -> 
                 MultiSet.add indexOfLetter letterCount acc) subtractedHand newPieces
     
+    //updates our makeshift board to try our moves on
     let newCBoard ms boardMap =
         List.fold (fun acc (coord, (id, (_, _))) -> Map.add coord id acc) boardMap ms
-
-    // Returns list of starters. A starter is a word we can play that starts at the given coord. 
-    // The form is (word, (coord, direction))
+    
+    //validates the letters we want to play
     let validater letters = 
         let directedWord letters direction =
             let getExistingWord (coord:coord) (direction: coord) (letters: Map<coord, char * int>) =                
@@ -118,8 +121,8 @@ module State =
                     let letter = (fst(Map.find coord letters))
                     Some (recMove coord direction letters (string letter))
                 | Some _ -> 
-                    None
 
+                    None
             Map.fold (fun (acc:List<(string * (coord * coord))>) (coord:coord) ((letter, _): char * int) -> 
                 let word = getExistingWord coord direction letters
                 
@@ -131,26 +134,26 @@ module State =
                     acc
                 ) [] letters
 
-        let downWords = directedWord letters (0,1)
-        let rightWords = directedWord letters (1,0)
-        
-        downWords @ rightWords
+        let xAxieswords = directedWord letters (1,0)
+        let yAxieswords = directedWord letters (0,1)        
+        yAxieswords @ xAxieswords
 
 
 
 module Scrabble =
-    open System.Threading
-    open MoveRobert
 
     let playGame cstream pieces (st : State.state) =
 
+        //our main recursive function , that runs throughout the game
         let rec aux (st : State.state) (myTurn: bool) (ms: (coord * (uint32 * (char * int))) list) =
             if (myTurn) then
                 forcePrint "-------------------- Here is your hand ---------------------\n\n" 
-                Print.printHand pieces (State.hand st)
+                
+                //uncomment under if you want to see hand
+                //Print.printHand pieces (State.hand st)
 
                 if st.playedLetters.Count = 0 then
-                    //Hardcoded starter values
+                    //Hardcoded starter values on first turn
                     let StartingInfo = ((0, 0), (1, 0), [], 7u)
                     let letters = MultiSet.toList (State.hand st)
                     let input = MoveRobert.RobertsFirstMove letters pieces st.dict  (StartingInfo)
@@ -159,7 +162,9 @@ module Scrabble =
                     debugPrint (sprintf "Player %d -> Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
                     send cstream (SMPlay move)
                 else
-                    let StartingInfoNormal = MoveRobert.getAllStarters (List.fold (fun acc (coord, (id, (_, _))) -> Map.add coord id acc) st.CBoard ms) 
+                    //we have had some problems with parsing wrong directions, so we have tried to all normal directions
+                    //and reversed, to cover all
+                    let StartingInfoNormal = MoveRobert.GetStartingInfo (List.fold (fun acc (coord, (id, (_, _))) -> Map.add coord id acc) st.CBoard ms) 
                     
                     let reversedStartingInfo =
                         StartingInfoNormal
@@ -169,26 +174,15 @@ module Scrabble =
 
                     let StartingInfo = StartingInfoNormal @ reversedStartingInfo
                     
+                    //under here we sort in our listOfWords, to find the perfect one
                     let letters = MultiSet.toList (State.hand st)
                     let mutable listOfWords = List.Empty
 
-                    // Convert allStartingPoints and uniqueStartingChars into a list of tuples
                     let startingInfoList = 
                         List.map (fun (coord, direction, chars, length) -> (coord, direction, chars, length)) StartingInfo
 
                     for startingInfo in startingInfoList do 
                         listOfWords <- MoveRobert.RobertsFirstMove letters pieces st.dict (startingInfo) :: listOfWords
-
-                    let stateValid (word: string) (boardWords: (string * (coord * coord)) list) =
-                        // Extract the letters from the boardWords
-                        let lettersOnBoard = [ for (existingWord, _) in boardWords -> existingWord |> Seq.toList ]
-                                            |> List.concat
-
-                        // Check if each letter in the word exists in the letters on the board
-                        let lettersMatch = word |> Seq.forall (fun letter -> List.contains letter lettersOnBoard)
-
-                        // Return true if all letters in the word can be found on the board
-                        lettersMatch
 
 
                     let validWordsList =
@@ -214,6 +208,8 @@ module Scrabble =
                                 None
                         )
                     
+                    //here we count spaces in our already formatted strings,
+                    //to get the longest word
                     let spaceCount word = 
                         word |> Seq.filter (fun c -> c = ' ') |> Seq.length
 
@@ -231,17 +227,17 @@ module Scrabble =
 
                     let input = longestWord
                     
+                    //we match input to see if we need to pass or actually have something
+                    //to play
                     match input with
                     | "pass" ->
-                        printf "WORD PLAYED: %A" input
+                        
                         send cstream (SMPass)
-                        forcePrint "Passing this turn due to no possible moves.\n"
+                        debugPrint (sprintf "Passing this turn due to no possible moves.\n")
                     | "" ->
-                        printf "WORD PLAYED: %A" input
                         send cstream (SMPass)
-                        forcePrint "Passing this turn due to no possible moves.\n"
+                        debugPrint (sprintf "Passing this turn due to no possible moves.\n")
                     | _ ->
-                        printf "WORD PLAYED: %A" input
                         let move = RegEx.parseMove input
                         debugPrint (sprintf "Player %d -> Server:\n%A\n" (State.playerNumber st) move)
                         send cstream (SMPlay move)
@@ -249,28 +245,28 @@ module Scrabble =
             let msg = recv cstream
             match msg with
             | RCM (CMPlaySuccess(ms, points, newPieces)) ->
-            
-               let updateCustomBoard = State.newCBoard ms st.CBoard
+
+               let newCBoard = State.newCBoard ms st.CBoard
                
-               forcePrint "-------------------- Successful play by you ---------------------\n"
-               let updatedStateLetters = State.MovesIntoState ms st
+               debugPrint (sprintf "-------------------- Successful play by you ---------------------\n")
+               let newLetters = State.MovesIntoState ms st
 
                let newHand = State.updateHand ms st newPieces
 
-               let newState = State.mkState (State.board st) (State.dict st) (State.playerNumber st) (State.numberofplayers st) (State.playerTurn st) newHand updatedStateLetters.playedLetters (updateCustomBoard)
+               let newState = State.mkState (State.board st) (State.dict st) (State.playerNumber st) (State.numberofplayers st) (State.playerTurn st) newHand newLetters.playedLetters (newCBoard)
 
                aux newState (st.playerNumber % st.numberofplayers + 1u = st.playerNumber) ms
             | RCM (CMPlayed (pid, ms, points)) ->
                 
-                printf "-------------------- Word Played by CMPlayed ---------------------\n"
+                debugPrint (sprintf "-------------------- Word Played by CMPlayed ---------------------\n")
                 
-                let updatedStateLetters = State.MovesIntoState ms st
+                let newLetters = State.MovesIntoState ms st
 
-                let newState = State.mkState (State.board st) (State.dict st) (State.playerNumber st) (State.numberofplayers st) (State.playerTurn st) (State.hand st) updatedStateLetters.playedLetters (State.CBoard st)
+                let newState = State.mkState (State.board st) (State.dict st) (State.playerNumber st) (State.numberofplayers st) (State.playerTurn st) (State.hand st) newLetters.playedLetters (State.CBoard st)
 
                 aux newState (pid % st.numberofplayers + 1u = st.playerNumber) ms
             | RCM (CMPassed (pid)) ->
-                debugPrint (sprintf "-------------------- Word Passed byCMPlayed  ---------------------\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n")
+                debugPrint (sprintf "-------------------- Word Passed byCMPlayed  ---------------------\n")
                 aux st (pid % st.numberofplayers + 1u = st.playerNumber) ms
             | RCM (CMPlayFailed (pid, ms)) ->
                 (* Failed play. Update your state *)

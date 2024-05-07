@@ -1,14 +1,7 @@
 module internal MoveRobert
 
-    open MultiSet
-    open Parser
     open ScrabbleUtil
     open ScrabbleUtil.Dictionary
-    open System
-    open ScrabbleUtil.ServerCommunication
-    
-    open System.IO
-    open ScrabbleUtil.DebugPrint
     
     let RobertsFirstMove (InitCharactersOnHand : uint32 list) pieces (dict : Dictionary.Dict) (initStartingInfo : (coord * coord * uint32 list * uint32))=
             
@@ -165,21 +158,17 @@ module internal MoveRobert
                             | _ -> letter = alphabet.[letterIndex]
                             let points = findcharacterpoints number  // Get corresponding points for the number
                             let formatted = sprintf "%d %d %d%c%d" x y number letter points  // Concatenate number and points after the letter
-                            // prinft "\n2.5 \n"
                             
                             // Check if the first letter should be removed
                             let removeFirstLetter = 
                                 isFirstLetter && 
                                 (List.isEmpty startingChars || 
                                 List.head startingChars = uint32 (int letter - int 'A' + 1))
-                            // prinft "\n2.6 %A \n" (uint32 (int letter - int 'A' + 1))
                             
                             // Recursively format the rest of the word list
                             if removeFirstLetter then
-                                // prinft "\n2.7 \n"
                                 formatter acc (x + deltaX, y + deltaY) false tl
                             else
-                                // prinft "\n2.8 \n"
                                 formatter (formatted::acc) (x + deltaX, y + deltaY) false tl
 
                     let isFirstLetter = not (List.isEmpty startingChars) && List.head startingChars = List.head wordList
@@ -209,161 +198,148 @@ module internal MoveRobert
                         "pass"
 
                 formattedWord)
+            
 
-  
-    //Takes the boardMap, finds all vertical starters, and returns them as a list of truples: (coord:StartingPointOfStarter, coord:Direction, list<uint32>:ListOfTilesBeforeStarter)
+    let GetStartingInfo (boardMap: Map<coord, uint32>) : (coord * coord * (uint32) list * uint32) list =
+        let occupied = (boardMap.Keys |> Seq.cast |> List.ofSeq)
+        
+        // Checks if tiles around coord are clear
+        let aboveHelper (coord: coord) : bool =
+            let checkAbove = (fst coord, snd coord - 1): coord
+            let squareAbove = Map.tryFind (checkAbove) boardMap
+            if squareAbove = None then true else false
 
-    let getAllStarters (boardMap: Map<coord, uint32>) : (coord * coord * (uint32) list * uint32) list =
-        let keys = (boardMap.Keys |> Seq.cast |> List.ofSeq)
-        //If tile above c is clear return true, else return false
-        let abovePredicate (c: coord) : bool =
-            let cAbove = (fst c, snd c - 1): coord
-            let tileAbove = Map.tryFind (cAbove) boardMap
-            if tileAbove = None then true else false
-        //If tile below c is clear return true, else return false
-        let belowPredicate (c: coord) : bool =
-            let cBelow = (fst c, snd c + 1): coord
-            let tileBelow = Map.tryFind (cBelow) boardMap
-            if tileBelow = None then true else false
-        //If tile to the left of c is clear return true, else return false
-        let leftPredicate (c: coord) : bool =
-            let cLeft = (fst c - 1, snd c): coord
-            let tileLeft = Map.tryFind (cLeft) boardMap
-            if tileLeft = None then true else false
-        //If tile to the right of c is clear return true, else return false
-        let rightPredicate (c: coord) : bool =
-            let cRight = (fst c + 1, snd c): coord
-            let tileRight = Map.tryFind (cRight) boardMap
-            if tileRight = None then true else false
-        //Recursively get letters above tile
-        let rec getLettersAboveCoord (c: coord) (acc: (uint32) list) : (uint32) list =
-            let coordToInvestigate: coord = (fst c, snd c - 1)
+        let belowHelper (coord: coord) : bool =
+            let checkBelow = (fst coord, snd coord + 1): coord
+            let squareBelow = Map.tryFind (checkBelow) boardMap
+            if squareBelow = None then true else false
 
-            if List.contains (coordToInvestigate: coord) keys then
-                getLettersAboveCoord coordToInvestigate ((Map.find coordToInvestigate boardMap) :: acc)
+        let leftHelper (coord: coord) : bool =
+            let checkLeft = (fst coord - 1, snd coord): coord
+            let squareLeft = Map.tryFind (checkLeft) boardMap
+            if squareLeft = None then true else false
+
+        let rightHelper (coord: coord) : bool =
+            let checkRight = (fst coord + 1, snd coord): coord
+            let squareRight = Map.tryFind (checkRight) boardMap
+            if squareRight = None then true else false
+            
+            
+        let rec lettersAbove (coord: coord) (acc: (uint32) list) : (uint32) list =
+            let coord2: coord = (fst coord, snd coord - 1)
+
+            if List.contains (coord2: coord) occupied then
+                lettersAbove coord2 ((Map.find coord2 boardMap) :: acc)
             else
                 acc
 
-        let rec getLettersBelowCoord (c: coord) (acc: (uint32) list) : (uint32) list =
-            let coordToInvestigate: coord = (fst c, snd c + 1)
+        let rec lettersBelow (coord: coord) (acc: (uint32) list) : (uint32) list =
+            let coord2: coord = (fst coord, snd coord + 1)
 
-            if List.contains (coordToInvestigate: coord) keys then
-                getLettersBelowCoord coordToInvestigate ((Map.find coordToInvestigate boardMap) :: acc)
+            if List.contains (coord2: coord) occupied then
+                lettersBelow coord2 ((Map.find coord2 boardMap) :: acc)
             else
                 acc
         
-        let rec getLettersLeftOfCoord (c: coord) (acc: (uint32) list) : (uint32) list =
-            let coordToInvestigate: coord = (fst c-1, snd c)
+        let rec lettersLeft (coord: coord) (acc: (uint32) list) : (uint32) list =
+            let coord2: coord = (fst coord-1, snd coord)
 
-            if List.contains (coordToInvestigate: coord) keys then
-                getLettersLeftOfCoord coordToInvestigate ((Map.find coordToInvestigate boardMap) :: acc)
+            if List.contains (coord2: coord) occupied then
+                lettersLeft coord2 ((Map.find coord2 boardMap) :: acc)
             else
                 acc
 
-        let rec getLettersRightOfCoord (c: coord) (acc: (uint32) list) : (uint32) list =
-            let coordToInvestigate: coord = (fst c + 1, snd c)
+        let rec lettersRight (coord: coord) (acc: (uint32) list) : (uint32) list =
+            let coord2: coord = (fst coord + 1, snd coord)
 
-            if List.contains (coordToInvestigate: coord) keys then
-                getLettersRightOfCoord coordToInvestigate ((Map.find coordToInvestigate boardMap) :: acc)
+            if List.contains (coord2: coord) occupied then
+                lettersRight coord2 ((Map.find coord2 boardMap) :: acc)
             else
                 acc        
 
-        let rec getVerticalLength (c: coord) (acc: uint32) : uint32 =
-            let coordToInvestigate: coord = (fst c, snd c + 1)
+        let rec verticalLen (coord: coord) (acc: uint32) : uint32 =
+            let coord2: coord = (fst coord, snd coord + 1)
 
             if
-                belowPredicate coordToInvestigate
-                && leftPredicate coordToInvestigate
-                && rightPredicate coordToInvestigate
+                belowHelper coord2
+                && leftHelper coord2
+                && rightHelper coord2
                 && acc < 7u
             then
-                getVerticalLength coordToInvestigate (acc + 1u)
+                verticalLen coord2 (acc + 1u)
             else
                 acc
         
-        let rec getRevVerticalLength (c: coord) (acc: uint32) : uint32 =
-            let coordToInvestigate: coord = (fst c, snd c - 1)
+        let rec revVerticalLen (coord: coord) (acc: uint32) : uint32 =
+            let coord2: coord = (fst coord, snd coord - 1)
 
             if
-                abovePredicate coordToInvestigate
-                && leftPredicate coordToInvestigate
-                && rightPredicate coordToInvestigate
+                aboveHelper coord2
+                && leftHelper coord2
+                && rightHelper coord2
                 && acc < 7u
             then
-                getRevVerticalLength coordToInvestigate (acc + 1u)
+                revVerticalLen coord2 (acc + 1u)
             else
                 acc
         
-        let rec getHorizontalLength (c: coord) (acc: uint32) : uint32 =
-            let coordToInvestigate: coord = (fst c + 1, snd c)
+        let rec horizontalLen (coord: coord) (acc: uint32) : uint32 =
+            let coord2: coord = (fst coord + 1, snd coord)
             if
-                rightPredicate coordToInvestigate
-                && abovePredicate coordToInvestigate
-                && belowPredicate coordToInvestigate
+                rightHelper coord2
+                && aboveHelper coord2
+                && belowHelper coord2
                 && acc < 7u
             then
-                getHorizontalLength coordToInvestigate (acc + 1u)
+                horizontalLen coord2 (acc + 1u)
             else
                 acc
         
-        let rec getRevHorizontalLength (c: coord) (acc: uint32) : uint32 =
-            let coordToInvestigate: coord = (fst c - 1, snd c)
+        let rec revHorizontalLen (coord: coord) (acc: uint32) : uint32 =
+            let coord2: coord = (fst coord - 1, snd coord)
             if
-                leftPredicate coordToInvestigate
-                && abovePredicate coordToInvestigate
-                && belowPredicate coordToInvestigate
+                leftHelper coord2
+                && aboveHelper coord2
+                && belowHelper coord2
                 && acc < 7u
             then
-                getRevHorizontalLength coordToInvestigate (acc + 1u)
+                revHorizontalLen coord2 (acc + 1u)
             else
                 acc
         
-        let rec verticalPredicateHandler (c: coord) =
-            //If both above and below is clear, return list with starter for down direction (Can be extended to both up and down direction if we want to look for both).
-            if belowPredicate c && abovePredicate c then
-                [ (c, ((0, 1): coord), [ Map.find c boardMap ], getVerticalLength c 0u) ]
-            else if belowPredicate c && not (abovePredicate c) then
-                [ (c, ((0, 1): coord), getLettersAboveCoord c [ Map.find c boardMap ], getVerticalLength c 0u) ]
+        let rec verticalHelper (coord: coord) =
+            if belowHelper coord && aboveHelper coord then
+                [ (coord, ((0, 1): coord), [ Map.find coord boardMap ], verticalLen coord 0u) ]
+            else if belowHelper coord && not (aboveHelper coord) then
+                [ (coord, ((0, 1): coord), lettersAbove coord [ Map.find coord boardMap ], verticalLen coord 0u) ]
             else
                 []
         
-        let rec reverseVerticalPredicateHandler (c: coord) =
-            //If both above and below is clear, return list with starter for down direction (Can be extended to both up and down direction if we want to look for both).
-            if belowPredicate c && abovePredicate c then
-                [ (c, ((0, -1): coord), [ Map.find c boardMap ], getRevVerticalLength c 0u) ]
-            else if belowPredicate c && not (abovePredicate c) then
-                //if (List.contains (fst c, snd c - 1) keys)
-                //printf "HERE 1: %A" (getLettersBelowCoord c [ Map.find c boardMap ])
-                [ (c, ((0, -1): coord), getLettersBelowCoord c [ Map.find c boardMap ], getRevVerticalLength c 0u) ]
+        let rec revVerticalHelper (coord: coord) =
+            if belowHelper coord && aboveHelper coord then
+                [ (coord, ((0, -1): coord), [ Map.find coord boardMap ], revVerticalLen coord 0u) ]
+            else if belowHelper coord && not (aboveHelper coord) then
+                [ (coord, ((0, -1): coord), lettersBelow coord [ Map.find coord boardMap ], revVerticalLen coord 0u) ]
             else
                 []
-        let rec horizontalPredicateHandler (c: coord) =
-            //If both above and below is clear, return list with starter for down direction (Can be extended to both up and down direction if we want to look for both).
-            if rightPredicate c && leftPredicate c then
-                //printfn "1 - coord: %A" c
-                //printfn "mapFind: %A" (Map.find c boardMap)
-                //printf "HERE 3: %A" (getLettersBelowCoord c [ Map.find c boardMap ])
-                [ (c, ((1, 0): coord), [ Map.find c boardMap ], getHorizontalLength c 0u) ]
-            else if rightPredicate c && not (leftPredicate c) then
-                // "HERE 2: %A" (getLettersBelowCoord c [ Map.find c boardMap ])
-                [ (c, ((1, 0): coord), getLettersLeftOfCoord c [ Map.find c boardMap ], getHorizontalLength c 0u) ]
+        let rec horizontalHelper (coord: coord) =
+            if rightHelper coord && leftHelper coord then
+                [ (coord, ((1, 0): coord), [ Map.find coord boardMap ], horizontalLen coord 0u) ]
+            else if rightHelper coord && not (leftHelper coord) then
+                [ (coord, ((1, 0): coord), lettersLeft coord [ Map.find coord boardMap ], horizontalLen coord 0u) ]
             else
                 []
         
-        let rec reverseHorizontalPredicateHandler (c: coord) =
-            //If both above and below is clear, return list with starter for down direction (Can be extended to both up and down direction if we want to look for both).
-            if rightPredicate c && leftPredicate c then
-                //printfn "2 - coord: %A" c
-                //printfn "mapFind: %A" (Map.find c boardMap)
-                //printf "HERE 4: %A" (getLettersBelowCoord c [ Map.find c boardMap ])
-                [ (c, ((-1, 0): coord), [ Map.find c boardMap ], getRevHorizontalLength c 0u) ]
-            else if rightPredicate c && not (leftPredicate c) then
-                [ (c, ((-1, 0): coord), getLettersRightOfCoord c [ Map.find c boardMap ], getRevHorizontalLength c 0u) ]
+        let rec revHorizontalHelper (coord: coord) =
+            if rightHelper coord && leftHelper coord then
+                [ (coord, ((-1, 0): coord), [ Map.find coord boardMap ], revHorizontalLen coord 0u) ]
+            else if rightHelper coord && not (leftHelper coord) then
+                [ (coord, ((-1, 0): coord), lettersRight coord [ Map.find coord boardMap ], revHorizontalLen coord 0u) ]
             else
                 []
         
-        let verticalStarters = List.fold (fun acc c -> List.append acc (verticalPredicateHandler c)) [] keys
-        let horizontalStarters = List.fold (fun acc c -> List.append acc (horizontalPredicateHandler c)) [] keys
-        let reverseVerticalStarters = List.fold (fun acc c -> List.append acc (reverseVerticalPredicateHandler c)) [] keys
-        let reverseHorizontalStarters = List.fold (fun acc c -> List.append acc (reverseHorizontalPredicateHandler c)) [] keys
+        let verticalStarters = List.fold (fun acc c -> List.append acc (verticalHelper c)) [] occupied
+        let horizontalStarters = List.fold (fun acc c -> List.append acc (horizontalHelper c)) [] occupied
+        let reverseVerticalStarters = List.fold (fun acc c -> List.append acc (revVerticalHelper c)) [] occupied
+        let reverseHorizontalStarters = List.fold (fun acc c -> List.append acc (revHorizontalHelper c)) [] occupied
         verticalStarters @ horizontalStarters @ reverseVerticalStarters @ reverseHorizontalStarters
