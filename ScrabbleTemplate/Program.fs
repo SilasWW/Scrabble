@@ -38,7 +38,7 @@ let main argv =
     let handSize   = 7u
     let timeout    = None
     let tiles      = ScrabbleUtil.English.tiles 1u
-    let seed       = None // this will be changed regularly
+    let seed       = Some 42 // this will be changed regularly
     let port       = 13001
 
     let dictAPI =
@@ -50,10 +50,8 @@ let main argv =
         time (fun () -> ScrabbleUtil.Dictionary.mkDict words dictAPI)
         
     // Uncomment this line to call your client
-    let players   = [("Silas", dictionary, Robert.Scrabble.startGame)
-                     ("Karl", dictionary, Robert.Scrabble.startGame)
-                     ("OXY1", dictionary, Oxyphenbutazone.Scrabble.startGame)
-                     ("OXY2", dictionary, Oxyphenbutazone.Scrabble.startGame)]
+    let players   = [("Silas", dictionary, Oxyphenbutazone.Scrabble.startGame)
+                     ("Karl", dictionary, Robert.Scrabble.startGame)]
 
    
 

@@ -10,21 +10,14 @@ module internal MoveRobert
     open System.IO
     open ScrabbleUtil.DebugPrint
     
-    let RobertsFirstMove (hand : MultiSet<uint32>) (board : board) (InitCharactersOnHand : uint32 list) pieces (dict : Dictionary.Dict) (playedLetters : Map<coord, (char * int)>) (coord : coord) (direction : (int * int)) (initStartingInfo : (coord * coord * uint32 list * uint32))=
+    let RobertsFirstMove (InitCharactersOnHand : uint32 list) pieces (dict : Dictionary.Dict) (initStartingInfo : (coord * coord * uint32 list * uint32))=
             
-        //print the how many letters have been played
-        // prinft "PlayedLetters.Count = %A words" playedLetters.Count
-
-        //let rand = new System.Random()
-        //let randomIndex = rand.Next(initStartingInfo.Length)
-        //let StartingInfo = initStartingInfo.[randomIndex]
-        
         let charactersOnHand = InitCharactersOnHand |> List.filter (fun x -> x <> 0u)
 
         let StartingInfo = initStartingInfo
 
-        // prinft "\n1.1 \n"
-        //states how long a word can be, which should be set by StartingInfo
+        
+        // takes out the lenth in our startingInfo, and sets it as value maxLengthOfWord
         let maxLengthOfWord = StartingInfo |> fun (_, _, _, len) -> len
 
         //extracts the pair from from the set
@@ -33,33 +26,37 @@ module internal MoveRobert
             | x::xs -> x
             | [] -> failwith "error"
         
-        //removes the letter as it is used to try to form a word
-        let RemoveUsedLetterFromHand letterToBeRemoved charactersOnHand = 
+        //This function removes the letter that were just used
+        let RemoveUsedLetterFromCurrentHand letterToBeRemoved charactersOnHand = 
             let foundIndex = List.tryFindIndex (fun x -> x = letterToBeRemoved) charactersOnHand
             match foundIndex with
             | Some(i) -> List.removeAt i charactersOnHand
             | None -> charactersOnHand
         
 
-        let uint32ListToString (word: uint32 list) =
+        // converts out list of uint32 to the word as a string, using the alfabet
+        let ConvertIntListToString (wordList: uint32 list) =
             let alphabet = " ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-            List.fold (fun acc letterCode ->
-                if letterCode >= 0u && letterCode <= 26u then
-                    acc + string alphabet.[int letterCode]
+            List.fold (fun acc letterAsUint ->
+                if letterAsUint >= 0u && letterAsUint <= 26u then
+                    acc + string alphabet.[int letterAsUint]
                 else
                     "pass" // Ignore invalid letter codes
-            ) "" word
+            ) "" wordList
         
-        // Helper function to process starting characters into a valid initial dictionary state
-        let InitializeWithStartingChars (dict: Dictionary.Dict) (chars: list<uint32>) =
-            //printf "S: %A" (uint32ListToString chars)
-            List.fold (fun (accDict, accWord, success) char ->
-                match Dictionary.step (fst (GetTuple (Map.find char pieces))) accDict with
+        //steps into our dictionary with the starting chars, 
+        //to form words that always start with what is on the board
+        // This is where we could improve by also allowing to have them inside words,
+        // or at the end, this limits us alot, but we couldn't find a
+        // sufficient solution
+        let StartingDictWithStartingChars (dict: Dictionary.Dict) (listOfCharsAsUint: list<uint32>) =
+            List.fold (fun (accDict, accWord, _) char ->
+                match step (fst (GetTuple (Map.find char pieces))) accDict with
                 | Some (_, nextDict) ->
                     (nextDict, accWord @ [char], true)
                 | None -> 
                     (accDict, accWord, false)
-            ) (dict, [], true) chars
+            ) (dict, [], true) listOfCharsAsUint
         
         // Modified GetAllPossibleWords to use initialized state
         let rec GetAllPossibleWords (dict: Dictionary.Dict) (remainingLetters: uint32 list) (currentWord: uint32 list) =
@@ -71,42 +68,37 @@ module internal MoveRobert
                         | Some (isWord, nextDict) ->
                             let newWord = currentWord @ [letter]
                             let newAcc = if isWord then newWord::acc else acc
-                            (newAcc @ (fst (GetAllPossibleWords nextDict (RemoveUsedLetterFromHand letter remainingLetters) newWord)), true)
+                            (newAcc @ (fst (GetAllPossibleWords nextDict (RemoveUsedLetterFromCurrentHand letter remainingLetters) newWord)), true)
                         | None ->
                             (acc, false)
                     ) ([], true) remainingLetters
                 (words, valid && List.length words > 0)
 
-        // Adjust the starting point of possible words
-        // prinft "\n1 \n"
+        //setting startingchars in startinginfo, 
+        //which follows startingcoord, direction in form of coord, startingChars, and length as prev shown
         let _, _, startingChars, _ = StartingInfo
-        
-        // prinft "\n1.1.1 %A\n" startingChars
 
-        let (initializedDict: Dict), (initialWord: uint32 list), isValidInit = InitializeWithStartingChars dict startingChars
-        // prinft "\n1.1.2 \n"
+        //getting our dict and word prepared 
+        let (preparedDict: Dict), (preparedWord: uint32 list), isValidInit = StartingDictWithStartingChars dict startingChars
+
+        //here we already check if we should pass
         if not isValidInit then "pass"
         else 
-            let possibleWords = GetAllPossibleWords dict (charactersOnHand |> List.filter (fun char -> not (List.contains char startingChars))) initialWord
-            // prinft "\n1.1.3 \n"
+            //if its valid, wer get all possible words from this startinginfo
+            let possibleWords = GetAllPossibleWords dict (charactersOnHand |> List.filter (fun char -> not (List.contains char startingChars))) preparedWord
             
+            //we filter the words to find valid words to play, 
+            //this it so that we dont play Autisti because the stepping
+            //doesnt stop it because autistic is a word. this prevents that
             match possibleWords with
             | _, false -> "pass"
-            | words, true -> (
-                
-                // Adjust the possible words to remove the startingChars from each word
-                // let adjustedWords = 
-                //     let (possibleWords, isValid) = GetAllPossibleWords initializedDict (charactersOnHand |> List.filter (fun char -> not (List.contains char startingChars))) initialWord
-                //     if not isValid then 
-                //         ([], false)
-                //     else 
-                //         (possibleWords |> List.map (fun word -> List.skip (List.length startingChars) word), true)
+            | _, true -> (
 
                 let rec filterValidWords (dict: Dictionary.Dict) (possibleWords: list<list<uint32>> * bool) =
                     match possibleWords with
                     | [], _ -> ([], false)
                     | word::rest, valid ->
-                        let wordString = uint32ListToString word
+                        let wordString = ConvertIntListToString word
                         let isValidWord = lookup wordString dict
                         if isValidWord then
                             let (validWords, allValid) = filterValidWords dict (rest, valid)
@@ -115,35 +107,13 @@ module internal MoveRobert
                             let (validWords, allValid) = filterValidWords dict (rest, valid)
                             (validWords, false)
 
+                //here we call the function above
                 let (filteredWords, allValid) = filterValidWords dict possibleWords
-
-
-                // prinft "\n1.2 \n"
-
-                let findLongestList (lists : List<List<uint32>>) =
-                    let mutable maxLength = 0
-                    let mutable maxList = []
-                    // prinft "\n1.3 \n"
-
-                    // prinft "\nList count: %d\n" (List.length lists)
-                    // prinft "\n1.4 \n"
-                    for lst in lists do
-                        let length = List.length lst
-                        if length > maxLength then
-                            // prinft "\n1.5 \n"
-                            maxLength <- length
-                            maxList <- lst
-
-                    if maxList.IsEmpty then failwith "Empty list of lists"
-                    else (maxList, maxLength)
-                    
-                // prinft "\n1.8 \n"
-                
-              
+ 
                 let longestWord = 
-                    let mutable (possibleWords, isValid) = GetAllPossibleWords initializedDict (charactersOnHand |> List.filter (fun char -> not (List.contains char startingChars))) initialWord
+                    let mutable (_, isValid) = GetAllPossibleWords preparedDict (charactersOnHand |> List.filter (fun char -> not (List.contains char startingChars))) preparedWord
                     if not isValid then 
-                        ([], false)  // If no valid words are found, return empty and false
+                        ([], false)
                     else
                         let mutable maxLength = 0
                         let mutable maxList = []
@@ -153,44 +123,36 @@ module internal MoveRobert
                                 maxLength <- length
                                 maxList <- lst
                         if maxList.IsEmpty then
-                            // prinftn "longestWord 1 - maxlist: %A" maxList
-                            ([], false)  // No words found, return false
+                            ([], false) 
                         else
-                            // prinftn "longestWord 2 - maxlist: %A" maxList
-                            (maxList, true)  // Return the longest word found and true
+                            (maxList, true)
                 
-
-                let charNumberToPoints (char: int) = 
+                
+                let findcharacterpoints (char: int) = 
                     match char with
-                    | 17 | 26                                       -> 10
-                    | 10 | 24                                       -> 8
-                    | 11                                            -> 5
-                    | 6 | 8 | 22 | 23 | 25                          -> 4
-                    | 2 | 3 | 13 | 16                               -> 3
-                    | 4 | 7                                         -> 2
-                    | 1 | 5 | 9 | 12 | 14 | 15 | 18 | 19 | 20 | 21  -> 1
-                    | 0                                             -> 0
-                    | _                                             -> failwith "can't convert uint"
+                    | 0 -> 0
+                    | 1 | 5 | 9 | 12 | 14 | 15 | 18 | 19 | 20 | 21 -> 1
+                    | 4 | 7 -> 2
+                    | 2 | 3 | 13 | 16 -> 3
+                    | 6 | 8 | 22 | 23 | 25-> 4
+                    | 11-> 5
+                    | 10 | 24-> 8
+                    | 17 | 26 -> 10
+                    | _-> failwith "error"
 
-                // Add debugging output to trace function execution
+                // input follow a specific format, that we make here
                 let longestWordFormat (startCoord: coord) (direction: coord) (startingChars: uint32 list) (wordListWithCount: List<uint32> * int) : string =
                     let alphabet = "0ABCDEFGHIJKLMNOPQRSTUVWXYZ"
                     let mutable deltaX, deltaY = direction
-                    deltaY <- (abs deltaY)
-                    deltaX <- (abs deltaX)
+                    deltaY <- (deltaY)
+                    deltaX <- (deltaX)
                     let startX, startY = startCoord
-                    // prinft "startCoord %A\n and direction: %A" startCoord direction // Debugging output for word list
-
-                    // Adjust the starting position based on the length of startingChars
-                    let initialX = startX + deltaX * List.length startingChars
-                    let initialY = startY + deltaY * List.length startingChars
-                    let wordList, count = wordListWithCount  // Decompose the tuple into wordList and count
                     
-                    // prinft "WORDLIST %A\n" wordList  // Debugging output for word list
-                    
+                    // we get the wordlist out
+                    let (wordList: List<uint32>), _ = wordListWithCount                    
 
-                    ///
-                    let rec formatHelper acc (x, y) isFirstLetter = function
+                    //this formats out word
+                    let rec formatter acc (x, y) isFirstLetter = function
                         | [] -> String.concat " " (List.rev acc)
                         | hd::tl ->
                             let number = int hd 
@@ -201,7 +163,7 @@ module internal MoveRobert
                             match letterIndex with
                             | 0 -> letter = alphabet.[1]
                             | _ -> letter = alphabet.[letterIndex]
-                            let points = charNumberToPoints number  // Get corresponding points for the number
+                            let points = findcharacterpoints number  // Get corresponding points for the number
                             let formatted = sprintf "%d %d %d%c%d" x y number letter points  // Concatenate number and points after the letter
                             // prinft "\n2.5 \n"
                             
@@ -215,51 +177,36 @@ module internal MoveRobert
                             // Recursively format the rest of the word list
                             if removeFirstLetter then
                                 // prinft "\n2.7 \n"
-                                formatHelper acc (x + deltaX, y + deltaY) false tl
+                                formatter acc (x + deltaX, y + deltaY) false tl
                             else
                                 // prinft "\n2.8 \n"
-                                formatHelper (formatted::acc) (x + deltaX, y + deltaY) false tl
+                                formatter (formatted::acc) (x + deltaX, y + deltaY) false tl
 
-                    let initialIsFirstLetter = not (List.isEmpty startingChars) && List.head startingChars = List.head wordList
-                    let adjustedInitialX, adjustedInitialY =
-                        if initialIsFirstLetter then
+                    let isFirstLetter = not (List.isEmpty startingChars) && List.head startingChars = List.head wordList
+                    
+                    //adjusts the direction after
+                    let changedX, changedY =
+                        if isFirstLetter then
                             match direction with
-                            | 1, 0 -> abs startX, startY + deltaY // If direction is (1, 0), negative shift in x direction, positive shift in y direction
-                            | 0, 1 -> startX + deltaX, abs startY // If direction is (0, 1), positive shift in x direction, negative shift in y direction
-                            | _ -> startX, startY // No shift otherwise
+                            | 1, 0 ->  startX, startY + deltaY 
+                            | 0, 1 -> startX + deltaX, startY
+                            | _ -> startX, startY 
                         else
                             startX, startY // Maintain the current coordinates if the first letter is not removed
-
-
-                    formatHelper [] (abs adjustedInitialX, abs adjustedInitialY) initialIsFirstLetter wordList
-
-
-                // Debugging output for function completion
-                // prinft "\n2.2 \n"
-
-                let startCoord, direction, startingChars, _ = StartingInfo
-
-                // prinft "STARTING CHARS: %A" startingChars
                 
 
-                // Call longestWordFormat with provided inputs
+                    formatter [] (changedX, changedY) isFirstLetter wordList
+
+                let startCoord, direction, startingChars, _ = StartingInfo
+                
+
+                // Call longestWordFormat with needed inputs
                 let formattedWord = 
                     match longestWord with
                     | wordList, true -> 
-                        // If the operation was successful, format the word list for output
-                        // prinftn "wordList - from formattedWord: %A" wordList
                         longestWordFormat startCoord direction startingChars (wordList, List.length wordList)
                     | _, false -> 
-                        // If the operation failed, return an error message directly
                         "pass"
-
-                
-                
-                // prinft "\n3 \n"
-                //for word in possiblewords do
-                    //// prinftn "word: %A" formattedWord
-                
-                //printf "WORD Returned: %A" formattedWord
 
                 formattedWord)
 
