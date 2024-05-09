@@ -121,7 +121,6 @@ module State =
                     let letter = (fst(Map.find coord letters))
                     Some (recMove coord direction letters (string letter))
                 | Some _ -> 
-
                     None
             Map.fold (fun (acc:List<(string * (coord * coord))>) (coord:coord) ((letter, _): char * int) -> 
                 let word = getExistingWord coord direction letters
@@ -137,6 +136,26 @@ module State =
         let xAxieswords = directedWord letters (1,0)
         let yAxieswords = directedWord letters (0,1)        
         yAxieswords @ xAxieswords
+    
+    let filterStartingInfo (boardMap: Map<coord, uint32>) (startingInfo: (coord * coord * uint32 list * uint32) list) =
+        let occupiedSet = boardMap.Keys |> Set.ofSeq
+
+        //printf "OCCUPIED: %A" occupiedSet
+
+        let rec hasOccupiedTiles (startCoord: coord) (direction: coord) (length: uint32) =
+            let rec checkCoords (coord: coord) (remainingLength: uint32) =
+                match remainingLength with
+                | 0u -> false
+                | _ ->
+                    if Set.contains coord occupiedSet then
+                        true
+                    else
+                        let nextCoord = (fst coord + fst direction, snd coord + snd direction)
+                        checkCoords nextCoord (remainingLength - 1u)
+
+            not (checkCoords startCoord length)
+
+        List.filter (fun (startCoord, direction, _, length) -> hasOccupiedTiles startCoord direction length) startingInfo
 
 
 
@@ -147,10 +166,10 @@ module Scrabble =
         //our main recursive function , that runs throughout the game
         let rec aux (st : State.state) (myTurn: bool) (ms: (coord * (uint32 * (char * int))) list) =
             if (myTurn) then
-                forcePrint "-------------------- Here is your hand ---------------------\n\n" 
+                printf "-------------------- Here is Player %A hand ---------------------\n\n" st.playerNumber 
                 
                 //uncomment under if you want to see hand
-                //Print.printHand pieces (State.hand st)
+                Print.printHand pieces (State.hand st)
 
                 if st.playedLetters.Count = 0 then
                     //Hardcoded starter values on first turn
@@ -164,8 +183,8 @@ module Scrabble =
                 else
                     //we have had some problems with parsing wrong directions, so we have tried to all normal directions
                     //and reversed, to cover all
-                    let StartingInfoNormal = MoveRobert.GetStartingInfo (List.fold (fun acc (coord, (id, (_, _))) -> Map.add coord id acc) st.CBoard ms) 
                     
+                    let StartingInfoNormal = MoveRobert.GetStartingInfo (List.fold (fun acc (coord, (id, (_, _))) -> Map.add coord id acc) st.CBoard ms) 
                     let reversedStartingInfo =
                         StartingInfoNormal
                         |> List.map (fun (coord, direction, list, id) ->
@@ -173,6 +192,18 @@ module Scrabble =
                             (coord, reversedDirection, list, id))
 
                     let StartingInfo = StartingInfoNormal @ reversedStartingInfo
+
+
+                    //for startingInfoNormal in StartingInfoNormal do
+                    //    printf "StartingInfoNormal: %A" startingInfoNormal
+                    
+
+                    //printfn "Starting Info Before Filtering: %A" StartingInfo
+
+                    let FilteredStartingInfo = State.filterStartingInfo st.CBoard StartingInfo
+
+                    //printfn "Starting Info After Filtering: %A" FilteredStartingInfo
+                    
                     
                     //under here we sort in our listOfWords, to find the perfect one
                     let letters = MultiSet.toList (State.hand st)
@@ -183,11 +214,11 @@ module Scrabble =
 
                     for startingInfo in startingInfoList do 
                         listOfWords <- MoveRobert.RobertsFirstMove letters pieces st.dict (startingInfo) :: listOfWords
-
-
+                    
                     let validWordsList =
                         listOfWords
-                        |> List.choose (fun word ->
+                        |> Seq.map (fun word ->
+
                             let stateWithInsertedMove = State.MovesIntoState (RegEx.parseMove word) st
                             let everyWordOnTheBoardInStateWithInsertedMove = State.validater stateWithInsertedMove.playedLetters
                             let stateValid =
@@ -215,6 +246,8 @@ module Scrabble =
 
                     let formattedWords = validWordsList 
 
+                    let formattedWordsList = formattedWords |> Seq.choose id |> Seq.toList
+
                     let longestWord = 
                         List.fold (fun longest word ->
                             let longestSpaces = spaceCount longest
@@ -223,7 +256,7 @@ module Scrabble =
                                 word
                             else
                                 longest
-                        ) "" (formattedWords)
+                        ) "" (formattedWordsList)
 
                     let input = longestWord
                     
@@ -259,10 +292,12 @@ module Scrabble =
             | RCM (CMPlayed (pid, ms, points)) ->
                 
                 debugPrint (sprintf "-------------------- Word Played by CMPlayed ---------------------\n")
+
+                let newCBoard = State.newCBoard ms st.CBoard
                 
                 let newLetters = State.MovesIntoState ms st
 
-                let newState = State.mkState (State.board st) (State.dict st) (State.playerNumber st) (State.numberofplayers st) (State.playerTurn st) (State.hand st) newLetters.playedLetters (State.CBoard st)
+                let newState = State.mkState (State.board st) (State.dict st) (State.playerNumber st) (State.numberofplayers st) (State.playerTurn st) (State.hand st) newLetters.playedLetters (newCBoard)
 
                 aux newState (pid % st.numberofplayers + 1u = st.playerNumber) ms
             | RCM (CMPassed (pid)) ->

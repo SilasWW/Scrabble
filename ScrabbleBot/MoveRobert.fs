@@ -9,6 +9,7 @@ module internal MoveRobert
 
         let StartingInfo = initStartingInfo
 
+
         
         // takes out the lenth in our startingInfo, and sets it as value maxLengthOfWord
         let maxLengthOfWord = StartingInfo |> fun (_, _, _, len) -> len
@@ -86,7 +87,6 @@ module internal MoveRobert
             match possibleWords with
             | _, false -> "pass"
             | _, true -> (
-
                 let rec filterValidWords (dict: Dictionary.Dict) (possibleWords: list<list<uint32>> * bool) =
                     match possibleWords with
                     | [], _ -> ([], false)
@@ -136,9 +136,7 @@ module internal MoveRobert
                 // input follow a specific format, that we make here
                 let longestWordFormat (startCoord: coord) (direction: coord) (startingChars: uint32 list) (wordListWithCount: List<uint32> * int) : string =
                     let alphabet = "0ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-                    let mutable deltaX, deltaY = direction
-                    deltaY <- (deltaY)
-                    deltaX <- (deltaX)
+                    let dirX, dirY = direction
                     let startX, startY = startCoord
                     
                     // we get the wordlist out
@@ -167,9 +165,9 @@ module internal MoveRobert
                             
                             // Recursively format the rest of the word list
                             if removeFirstLetter then
-                                formatter acc (x + deltaX, y + deltaY) false tl
+                                formatter acc (x + dirX, y + dirY) false tl
                             else
-                                formatter (formatted::acc) (x + deltaX, y + deltaY) false tl
+                                formatter (formatted::acc) (x + dirX, y + dirY) false tl
 
                     let isFirstLetter = not (List.isEmpty startingChars) && List.head startingChars = List.head wordList
                     
@@ -177,8 +175,8 @@ module internal MoveRobert
                     let changedX, changedY =
                         if isFirstLetter then
                             match direction with
-                            | 1, 0 ->  startX, startY + deltaY 
-                            | 0, 1 -> startX + deltaX, startY
+                            | 1, 0 ->  startX, startY + dirY 
+                            | 0, 1 -> startX + dirX, startY
                             | _ -> startX, startY 
                         else
                             startX, startY // Maintain the current coordinates if the first letter is not removed
@@ -198,68 +196,61 @@ module internal MoveRobert
                         "pass"
 
                 formattedWord)
-            
 
     let GetStartingInfo (boardMap: Map<coord, uint32>) : (coord * coord * (uint32) list * uint32) list =
-        let occupied = (boardMap.Keys |> Seq.cast |> List.ofSeq)
+        let occupied = boardMap.Keys |> Seq.cast |> List.ofSeq
+
+        let occupiedSet = Set.ofList occupied
+
+        //for OccupiedSet in occupiedSet do
+        //    printf "occupiedSet: %A" OccupiedSet
         
-        // Checks if tiles around coord are clear
         let aboveHelper (coord: coord) : bool =
             let checkAbove = (fst coord, snd coord - 1): coord
-            let squareAbove = Map.tryFind (checkAbove) boardMap
-            if squareAbove = None then true else false
+            not (Set.contains checkAbove occupiedSet)
 
         let belowHelper (coord: coord) : bool =
             let checkBelow = (fst coord, snd coord + 1): coord
-            let squareBelow = Map.tryFind (checkBelow) boardMap
-            if squareBelow = None then true else false
+            not (Set.contains checkBelow occupiedSet)
 
         let leftHelper (coord: coord) : bool =
             let checkLeft = (fst coord - 1, snd coord): coord
-            let squareLeft = Map.tryFind (checkLeft) boardMap
-            if squareLeft = None then true else false
+            not (Set.contains checkLeft occupiedSet)
 
         let rightHelper (coord: coord) : bool =
             let checkRight = (fst coord + 1, snd coord): coord
-            let squareRight = Map.tryFind (checkRight) boardMap
-            if squareRight = None then true else false
-            
-            
-        let rec lettersAbove (coord: coord) (acc: (uint32) list) : (uint32) list =
-            let coord2: coord = (fst coord, snd coord - 1)
+            not (Set.contains checkRight occupiedSet)
 
-            if List.contains (coord2: coord) occupied then
-                lettersAbove coord2 ((Map.find coord2 boardMap) :: acc)
+        let rec lettersAbove (coord: coord) (acc: uint32 list) : uint32 list =
+            let coord2: coord = (fst coord, snd coord - 1)
+            if Set.contains coord2 occupiedSet then
+                lettersAbove coord2 (Map.find coord2 boardMap :: acc)
             else
                 acc
 
-        let rec lettersBelow (coord: coord) (acc: (uint32) list) : (uint32) list =
+        let rec lettersBelow (coord: coord) (acc: uint32 list) : uint32 list =
             let coord2: coord = (fst coord, snd coord + 1)
-
-            if List.contains (coord2: coord) occupied then
-                lettersBelow coord2 ((Map.find coord2 boardMap) :: acc)
+            if Set.contains coord2 occupiedSet then
+                lettersBelow coord2 (Map.find coord2 boardMap :: acc)
             else
                 acc
         
-        let rec lettersLeft (coord: coord) (acc: (uint32) list) : (uint32) list =
-            let coord2: coord = (fst coord-1, snd coord)
-
-            if List.contains (coord2: coord) occupied then
-                lettersLeft coord2 ((Map.find coord2 boardMap) :: acc)
+        let rec lettersLeft (coord: coord) (acc: uint32 list) : uint32 list =
+            let coord2: coord = (fst coord - 1, snd coord)
+            if Set.contains coord2 occupiedSet then
+                lettersLeft coord2 (Map.find coord2 boardMap :: acc)
             else
                 acc
 
-        let rec lettersRight (coord: coord) (acc: (uint32) list) : (uint32) list =
+        let rec lettersRight (coord: coord) (acc: uint32 list) : uint32 list =
             let coord2: coord = (fst coord + 1, snd coord)
-
-            if List.contains (coord2: coord) occupied then
-                lettersRight coord2 ((Map.find coord2 boardMap) :: acc)
+            if Set.contains coord2 occupiedSet then
+                lettersRight coord2 (Map.find coord2 boardMap :: acc)
             else
                 acc        
 
         let rec verticalLen (coord: coord) (acc: uint32) : uint32 =
             let coord2: coord = (fst coord, snd coord + 1)
-
             if
                 belowHelper coord2
                 && leftHelper coord2
@@ -268,20 +259,7 @@ module internal MoveRobert
             then
                 verticalLen coord2 (acc + 1u)
             else
-                acc
-        
-        let rec revVerticalLen (coord: coord) (acc: uint32) : uint32 =
-            let coord2: coord = (fst coord, snd coord - 1)
-
-            if
-                aboveHelper coord2
-                && leftHelper coord2
-                && rightHelper coord2
-                && acc < 7u
-            then
-                revVerticalLen coord2 (acc + 1u)
-            else
-                acc
+                acc 
         
         let rec horizontalLen (coord: coord) (acc: uint32) : uint32 =
             let coord2: coord = (fst coord + 1, snd coord)
@@ -295,51 +273,23 @@ module internal MoveRobert
             else
                 acc
         
-        let rec revHorizontalLen (coord: coord) (acc: uint32) : uint32 =
-            let coord2: coord = (fst coord - 1, snd coord)
-            if
-                leftHelper coord2
-                && aboveHelper coord2
-                && belowHelper coord2
-                && acc < 7u
-            then
-                revHorizontalLen coord2 (acc + 1u)
-            else
-                acc
-        
         let rec verticalHelper (coord: coord) =
             if belowHelper coord && aboveHelper coord then
                 [ (coord, ((0, 1): coord), [ Map.find coord boardMap ], verticalLen coord 0u) ]
-            else if belowHelper coord && not (aboveHelper coord) then
+            elif belowHelper coord && not (aboveHelper coord) then
                 [ (coord, ((0, 1): coord), lettersAbove coord [ Map.find coord boardMap ], verticalLen coord 0u) ]
             else
                 []
         
-        let rec revVerticalHelper (coord: coord) =
-            if belowHelper coord && aboveHelper coord then
-                [ (coord, ((0, -1): coord), [ Map.find coord boardMap ], revVerticalLen coord 0u) ]
-            else if belowHelper coord && not (aboveHelper coord) then
-                [ (coord, ((0, -1): coord), lettersBelow coord [ Map.find coord boardMap ], revVerticalLen coord 0u) ]
-            else
-                []
         let rec horizontalHelper (coord: coord) =
             if rightHelper coord && leftHelper coord then
                 [ (coord, ((1, 0): coord), [ Map.find coord boardMap ], horizontalLen coord 0u) ]
-            else if rightHelper coord && not (leftHelper coord) then
+            elif rightHelper coord && not (leftHelper coord) then
                 [ (coord, ((1, 0): coord), lettersLeft coord [ Map.find coord boardMap ], horizontalLen coord 0u) ]
             else
                 []
         
-        let rec revHorizontalHelper (coord: coord) =
-            if rightHelper coord && leftHelper coord then
-                [ (coord, ((-1, 0): coord), [ Map.find coord boardMap ], revHorizontalLen coord 0u) ]
-            else if rightHelper coord && not (leftHelper coord) then
-                [ (coord, ((-1, 0): coord), lettersRight coord [ Map.find coord boardMap ], revHorizontalLen coord 0u) ]
-            else
-                []
+        let verticalStarters = List.collect verticalHelper occupied
+        let horizontalStarters = List.collect horizontalHelper occupied
         
-        let verticalStarters = List.fold (fun acc c -> List.append acc (verticalHelper c)) [] occupied
-        let horizontalStarters = List.fold (fun acc c -> List.append acc (horizontalHelper c)) [] occupied
-        let reverseVerticalStarters = List.fold (fun acc c -> List.append acc (revVerticalHelper c)) [] occupied
-        let reverseHorizontalStarters = List.fold (fun acc c -> List.append acc (revHorizontalHelper c)) [] occupied
-        verticalStarters @ horizontalStarters @ reverseVerticalStarters @ reverseHorizontalStarters
+        verticalStarters @ horizontalStarters
