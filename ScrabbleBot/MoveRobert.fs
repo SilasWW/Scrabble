@@ -3,9 +3,9 @@ module internal MoveRobert
     open ScrabbleUtil
     open ScrabbleUtil.Dictionary
     
-    let RobertsFirstMove (InitCharactersOnHand : uint32 list) pieces (dict : Dictionary.Dict) (initStartingInfo : (coord * coord * uint32 list * uint32))=
+    let RobertsFirstMove (initCharactersOnHand : uint32 list) pieces (dict : Dictionary.Dict) (initStartingInfo : (coord * coord * uint32 list * uint32))=
             
-        let charactersOnHand = InitCharactersOnHand |> List.filter (fun x -> x <> 0u)
+        let charactersOnHand = initCharactersOnHand |> List.filter (fun x -> x <> 0u)
 
         let StartingInfo = initStartingInfo
 
@@ -75,6 +75,44 @@ module internal MoveRobert
         //getting our dict and word prepared 
         let (preparedDict: Dict), (preparedWord: uint32 list), isValidInit = StartingDictWithStartingChars dict startingChars
 
+        let checkCharactersOnHand (word: uint32 list) (charactersOnHand: uint32 list) (startingChars: uint32 list) =
+            // Function to remove a character from the available characters lists
+            let removeFromCharsList (c: uint32) (charsList: uint32 list) =
+                match List.tryFindIndex (fun x -> x = c) charsList with
+                | Some idx -> List.take idx charsList @ List.skip (idx + 1) charsList
+                | None -> charsList
+
+            // Make copies of charactersOnHand and startingChars to avoid modifying the original lists
+            let mutable availableChars = List.append charactersOnHand startingChars
+
+            // Function to check if each character in the word can be matched with available characters
+            let rec checkWordChars (word: uint32 list) (charsList: uint32 list) =
+                match word with
+                | [] -> true // All characters matched
+                | c::rest ->
+                    match List.tryFindIndex (fun x -> x = c) charsList with
+                    | Some idx ->
+                        // Remove the matched character from the available characters list
+                        let updatedCharsList = removeFromCharsList c charsList
+                        checkWordChars rest updatedCharsList
+                    | None ->
+                        false // Character not found in available characters
+
+            // Check if the word is longer than the starting characters
+            if List.length word <= List.length startingChars then
+                false
+            else
+                checkWordChars word availableChars
+
+
+
+
+
+
+
+
+
+
         //here we already check if we should pass
         if not isValidInit then "pass"
         else 
@@ -93,7 +131,8 @@ module internal MoveRobert
                     | word::rest, valid ->
                         let wordString = ConvertIntListToString word
                         let isValidWord = lookup wordString dict
-                        if isValidWord then
+                        let CanMakeWord = checkCharactersOnHand word charactersOnHand startingChars
+                        if isValidWord && CanMakeWord then
                             let (validWords, allValid) = filterValidWords dict (rest, valid)
                             (word :: validWords, allValid)
                         else
@@ -102,7 +141,7 @@ module internal MoveRobert
 
                 //here we call the function above
                 let (filteredWords, allValid) = filterValidWords dict possibleWords
- 
+
                 let longestWord = 
                     let mutable (_, isValid) = GetAllPossibleWords preparedDict (charactersOnHand |> List.filter (fun char -> not (List.contains char startingChars))) preparedWord
                     if not isValid then 
@@ -185,7 +224,7 @@ module internal MoveRobert
                     formatter [] (changedX, changedY) isFirstLetter wordList
 
                 let startCoord, direction, startingChars, _ = StartingInfo
-                
+
 
                 // Call longestWordFormat with needed inputs
                 let formattedWord = 
