@@ -156,6 +156,81 @@ module State =
             not (checkCoords startCoord length)
 
         List.filter (fun (startCoord, direction, _, length) -> hasOccupiedTiles startCoord direction length) startingInfo
+    
+    let longestWord (filteredWords: list<list<uint32>>) = 
+        let mutable maxLength = 0
+        let mutable maxList = []
+        for lst in filteredWords do
+            let length = List.length lst
+            if length > maxLength then
+                maxLength <- length
+                maxList <- lst
+        if maxList.IsEmpty then
+            ([], false) 
+        else
+            (maxList, true)
+    let findcharacterpoints (char: int) = 
+        match char with
+        | 0 -> 0
+        | 1 | 5 | 9 | 12 | 14 | 15 | 18 | 19 | 20 | 21 -> 1
+        | 4 | 7 -> 2
+        | 2 | 3 | 13 | 16 -> 3
+        | 6 | 8 | 22 | 23 | 25-> 4
+        | 11-> 5
+        | 10 | 24-> 8
+        | 17 | 26 -> 10
+        | _-> failwith "error"
+    
+    // input follow a specific format, that we make here
+    let longestWordFormat (startCoord: coord) (direction: coord) (startingChars: uint32 list) (wordListWithCount: List<uint32> * int) : string =
+        let alphabet = "0ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        let dirX, dirY = direction
+        let startX, startY = startCoord
+        
+        // we get the wordlist out
+        let (wordList: List<uint32>), _ = wordListWithCount                    
+
+        //this formats out word
+        let rec formatter acc (x, y) isFirstLetter = function
+            | [] -> String.concat " " (List.rev acc)
+            | hd::tl ->
+                let number = int hd 
+                let letterIndex = number  // Adjust index because 'A' = 1 in your system
+                if letterIndex < 0 || letterIndex >= alphabet.Length then
+                    failwith "Character index out of range"
+                let mutable letter = alphabet.[letterIndex]
+                match letterIndex with
+                | 0 -> letter = alphabet.[1]
+                | _ -> letter = alphabet.[letterIndex]
+                let points = findcharacterpoints number  // Get corresponding points for the number
+                let formatted = sprintf "%d %d %d%c%d" x y number letter points  // Concatenate number and points after the letter
+                
+                // Check if the first letter should be removed
+                let removeFirstLetter = 
+                    isFirstLetter && 
+                    (List.isEmpty startingChars || 
+                    List.head startingChars = uint32 (int letter - int 'A' + 1))
+                
+                // Recursively format the rest of the word list
+                if removeFirstLetter then
+                    formatter acc (x + dirX, y + dirY) false tl
+                else
+                    formatter (formatted::acc) (x + dirX, y + dirY) false tl
+
+        let isFirstLetter = not (List.isEmpty startingChars) && List.head startingChars = List.head wordList
+        
+        //adjusts the direction after
+        let changedX, changedY =
+            if isFirstLetter then
+                match direction with
+                | 1, 0 ->  startX, startY + dirY 
+                | 0, 1 -> startX + dirX, startY
+                | _ -> startX, startY 
+            else
+                startX, startY // Maintain the current coordinates if the first letter is not removed
+    
+
+        formatter [] (changedX, changedY) isFirstLetter wordList
 
 
 
@@ -175,8 +250,20 @@ module Scrabble =
                     //Hardcoded starter values on first turn
                     let StartingInfo = ((0, 0), (1, 0), [], 7u)
                     let letters = MultiSet.toList (State.hand st)
-                    let input = MoveRobert.RobertsFirstMove letters pieces st.dict  (StartingInfo)
-                    let move = RegEx.parseMove (input)
+                    let filteredWords = MoveRobert.RobertsFirstMove letters pieces st.dict  (StartingInfo)
+                    let longestWord = State.longestWord (fst filteredWords) 
+
+                    let startCoord, direction, startingChars, _ = snd filteredWords
+
+                    // Call longestWordFormat with needed inputs
+                    let formattedWord = 
+                        match longestWord with
+                        | wordList, true -> 
+                            State.longestWordFormat startCoord direction startingChars (wordList, List.length wordList)
+                        | _, false -> 
+                            "pass"
+
+                    let move = RegEx.parseMove (formattedWord)
 
                     debugPrint (sprintf "Player %d -> Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
                     send cstream (SMPlay move)
@@ -215,8 +302,22 @@ module Scrabble =
                     for startingInfo in startingInfoList do 
                         listOfWords <- MoveRobert.RobertsFirstMove letters pieces st.dict (startingInfo) :: listOfWords
                     
+                    let mutable formattedWords = []
+
+                    for possibleWords in listOfWords do
+                        let startCoord, direction, startingChars, _ = (snd possibleWords)
+                        for wordList in fst possibleWords do
+                            let formattedWord = 
+                                State.longestWordFormat startCoord direction startingChars (wordList, List.length wordList)
+                            // Add the formatted word to the list
+                            if formattedWord = "" then
+                                formattedWords <- formattedWords @ ["pass"]
+                            else 
+                                formattedWords <- formattedWords @ [formattedWord]
+
+                    
                     let validWordsList =
-                        listOfWords
+                        formattedWords
                         |> Seq.map (fun word ->
 
                             let stateWithInsertedMove = State.MovesIntoState (RegEx.parseMove word) st
@@ -244,9 +345,7 @@ module Scrabble =
                     let spaceCount word = 
                         word |> Seq.filter (fun c -> c = ' ') |> Seq.length
 
-                    let formattedWords = validWordsList 
-
-                    let formattedWordsList = formattedWords |> Seq.choose id |> Seq.toList
+                    let formattedWordsList = validWordsList |> Seq.choose id |> Seq.toList
 
                     let longestWord = 
                         List.fold (fun longest word ->
