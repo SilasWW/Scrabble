@@ -103,20 +103,14 @@ module internal MoveRobert
             else
                 checkWordChars word availableChars
 
-
-
-
-
-
-
-
-
+        
+        let Letters = charactersOnHand @ startingChars
 
         //here we already check if we should pass
         if not isValidInit then "pass"
         else 
             //if its valid, wer get all possible words from this startinginfo
-            let possibleWords = GetAllPossibleWords dict (charactersOnHand |> List.filter (fun char -> not (List.contains char startingChars))) preparedWord
+            let possibleWords = GetAllPossibleWords dict (charactersOnHand) preparedWord
             
             //we filter the words to find valid words to play, 
             //this it so that we dont play Autisti because the stepping
@@ -142,21 +136,17 @@ module internal MoveRobert
                 let (filteredWords, allValid) = filterValidWords dict possibleWords
 
                 let longestWord = 
-                    let mutable (_, isValid) = GetAllPossibleWords preparedDict (charactersOnHand |> List.filter (fun char -> not (List.contains char startingChars))) preparedWord
-                    if not isValid then 
-                        ([], false)
+                    let mutable maxLength = 0
+                    let mutable maxList = []
+                    for lst in filteredWords do
+                        let length = List.length lst
+                        if length > maxLength then
+                            maxLength <- length
+                            maxList <- lst
+                    if maxList.IsEmpty then
+                        ([], false) 
                     else
-                        let mutable maxLength = 0
-                        let mutable maxList = []
-                        for lst in filteredWords do
-                            let length = List.length lst
-                            if length > maxLength then
-                                maxLength <- length
-                                maxList <- lst
-                        if maxList.IsEmpty then
-                            ([], false) 
-                        else
-                            (maxList, true)
+                        (maxList, true)
                 
                 
                 let findcharacterpoints (char: int) = 

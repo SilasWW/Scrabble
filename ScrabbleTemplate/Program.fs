@@ -50,7 +50,8 @@ let main argv =
         time (fun () -> ScrabbleUtil.Dictionary.mkDict words dictAPI)
         
     // Uncomment this line to call your client
-    let players   = [("Robert1", dictionary, Robert.Scrabble.startGame)]
+    let players   = [("Robert1", dictionary, Robert.Scrabble.startGame)
+                    ]
 
    
 
