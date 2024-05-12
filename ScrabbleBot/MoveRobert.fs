@@ -4,21 +4,20 @@ module internal MoveRobert
     open ScrabbleUtil.Dictionary
     
     let RobertsFirstMove (initCharactersOnHand : uint32 list) pieces (dict : Dictionary.Dict) (initStartingInfo : (coord * coord * uint32 list * uint32))=
-            
+
+        //let charactersOnHand = initCharactersOnHand |> List.filter (fun x -> x <> 0u)
         let charactersOnHand = initCharactersOnHand |> List.filter (fun x -> x <> 0u)
 
         let StartingInfo = initStartingInfo
-
-
         
         // takes out the lenth in our startingInfo, and sets it as value maxLengthOfWord
         let maxLengthOfWord = StartingInfo |> fun (_, _, _, len) -> len
 
         //extracts the pair from from the set
         let GetTuple (set:Set<char*int>) : char*int = 
-            match (Set.toList set) with
-            | x::xs -> x
-            | [] -> failwith "error"
+            match (Set.toList set) with 
+            | x::xs -> x 
+            | [] -> failwith "error" 
         
         //This function removes the letter that were just used
         let RemoveUsedLetterFromCurrentHand letterToBeRemoved charactersOnHand = 
@@ -41,7 +40,7 @@ module internal MoveRobert
         //steps into our dictionary with the starting chars, 
         //to form words that always start with what is on the board
         // This is where we could improve by also allowing to have them inside words,
-        // or at the end, this limits us alot, but we couldn't find a
+        // or at the end, this limits us a lot, but we couldn't find a
         // sufficient solution
         let StartingDictWithStartingChars (dict: Dictionary.Dict) (listOfCharsAsUint: list<uint32>) =
             List.fold (fun (accDict, accWord, _) char ->
