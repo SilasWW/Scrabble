@@ -52,10 +52,10 @@ module internal MoveRobert
             ) (dict, [], true) listOfCharsAsUint
         
         // Modified GetAllPossibleWords to use initialized state
-        let rec GetAllPossibleWords (dict: Dictionary.Dict) (remainingLetters: uint32 list) (currentWord: uint32 list) =
+        let rec GetAllPossibleWords (dict: Dict) (remainingLetters: uint32 list) (currentWord: uint32 list) =
             if (uint32 currentWord.Length) >= maxLengthOfWord then ([currentWord], true) else
-                let (words, valid) =
-                    List.fold (fun (acc, valid) letter ->
+                let words, valid =
+                    List.fold (fun (acc, _) letter ->
                         let IsWordFoundAndDict = step (fst (GetTuple (Map.find letter pieces))) dict
                         match IsWordFoundAndDict with
                         | Some (isWord, nextDict) ->
@@ -68,7 +68,7 @@ module internal MoveRobert
                 (words, valid)
         
         let addToLists (inputList: list<list<uint32>> * bool) (additionalList: list<uint32>) =
-            let (lists, boolValue) = inputList
+            let lists, boolValue = inputList
             let newList = List.map (fun subList -> subList @ additionalList) lists
             (newList, boolValue)
 
@@ -90,7 +90,7 @@ module internal MoveRobert
                 | [] -> true // All characters matched
                 | c::rest ->
                     match List.tryFindIndex (fun x -> x = c) charsList with
-                    | Some idx ->
+                    | Some _ ->
                         // Remove the matched character from the available characters list
                         let updatedCharsList = removeFromCharsList c charsList
                         checkWordChars rest updatedCharsList
@@ -109,7 +109,7 @@ module internal MoveRobert
         // getting our dict and word prepared 
         let possibleWords =
             if direction = (1, 0) || direction = (0, 1) then
-                let (preparedDict: Dict), (preparedWord: uint32 list), isValidInit = StartingDictWithStartingChars dict startingChars
+                let (_: Dict), (preparedWord: uint32 list), _ = StartingDictWithStartingChars dict startingChars
                 GetAllPossibleWords dict charactersOnHand preparedWord
             else
                 addToLists (GetAllPossibleWords dict charactersOnHand []) startingChars
@@ -117,7 +117,7 @@ module internal MoveRobert
         // Filter the words to find valid words to play
 
         // First set of filtered words
-        let rec filterValidWords1 (dict: Dictionary.Dict) (possibleWords: list<list<uint32>> * bool) =
+        let rec filterValidWords1 (dict: Dict) (possibleWords: list<list<uint32>> * bool) =
             match possibleWords with
             | [], _ -> ([], false)
             | word::rest, valid ->
@@ -125,20 +125,20 @@ module internal MoveRobert
                 let isValidWord = lookup wordString dict
                 let CanMakeWord = checkCharactersOnHand word charactersOnHand startingChars
                 if isValidWord && CanMakeWord then
-                    let (validWords, allValid) = filterValidWords1 dict (rest, valid)
+                    let validWords, allValid = filterValidWords1 dict (rest, valid)
                     (word :: validWords, allValid)
                 else
-                    let (validWords, allValid) = filterValidWords1 dict (rest, valid)
+                    let validWords, _ = filterValidWords1 dict (rest, valid)
                     (validWords, false)
 
         // Call the filtering functions for both sets of possible words
-        let (filteredWords1, allValid1) = filterValidWords1 dict possibleWords
+        let filteredWords1, _ = filterValidWords1 dict possibleWords
 
         
         // Return both sets of filtered words along with the StartingInfo tuple
         (filteredWords1, StartingInfo)
 
-    let GetStartingInfo (boardMap: Map<coord, uint32>) : (coord * coord * (uint32) list * uint32) list =
+    let GetStartingInfo (boardMap: Map<coord, uint32>) : (coord * coord * uint32 list * uint32) list =
         let occupied = boardMap.Keys |> Seq.cast |> List.ofSeq
         let occupiedSet = Set.ofList occupied
 
