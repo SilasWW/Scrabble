@@ -228,7 +228,7 @@ module State =
 
         formatter [] (changedX, changedY) isFirstLetter wordList
     
-    
+    //
     let reversedLongestWordFormat (endCoord: coord) (direction: coord) (startingChars: uint32 list) (wordListWithCount: List<uint32> * int) : string =
         let alphabet = "0ABCDEFGHIJKLMNOPQRSTUVWXYZ"
         let dirX, dirY = direction
@@ -240,7 +240,7 @@ module State =
         let startX = endX - dirX * (count - 1)
         let startY = endY - dirY * (count - 1)
 
-        // Format the word
+        // Function to format the word
         let rec formatter acc (x, y) isFirstLetter = function
             | [] -> String.concat " " (List.rev acc)
             | hd::tl ->
@@ -248,10 +248,8 @@ module State =
                 let letterIndex = number  // Adjust index because 'A' = 1 in your system
                 if letterIndex < 0 || letterIndex >= alphabet.Length then
                     failwith "Character index out of range"
-                let mutable letter = alphabet.[letterIndex]
-                match letterIndex with
-                | 0 -> letter = alphabet.[1]
-                | _ -> letter = alphabet.[letterIndex]
+                
+                let letter = if letterIndex = 0 then alphabet.[1] else alphabet.[letterIndex]
                 let points = findcharacterpoints number  // Get corresponding points for the number
                 let formatted = sprintf "%d %d %d%c%d" x y number letter points  // Concatenate number and points after the letter
 
@@ -265,10 +263,6 @@ module State =
 
         // Start formatting from the calculated starting coordinates
         formatter [] (startX, startY) isFirstLetter wordList
-
-
-
-
 
 module Scrabble =
 
