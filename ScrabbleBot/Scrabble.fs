@@ -272,7 +272,7 @@ module Scrabble =
                 debugPrint "-------------------- Here is Player hand ---------------------\n\n" 
                 
                 //uncomment under if you want to see hand
-                Print.printHand pieces (State.hand st)
+                //Print.printHand pieces (State.hand st)
 
                 if st.playedLetters.Count = 0 then
                     //Hardcoded starter values on first turn
