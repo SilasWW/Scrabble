@@ -66,13 +66,16 @@ module internal MoveRobert
                             (acc, false)
                     ) ([], true) remainingLetters
                 (words, valid)
+        
+        let addToLists (inputList: list<list<uint32>> * bool) (additionalList: list<uint32>) =
+            let (lists, boolValue) = inputList
+            let newList = List.map (fun subList -> subList @ additionalList) lists
+            (newList, boolValue)
 
         // setting starting chars in starting info, 
         // which follows starting coord, direction in the form of coord, startingChars, and length as previously shown
-        let _, _, startingChars, _ = StartingInfo
-
-        // getting our dict and word prepared 
-        let (preparedDict: Dict), (preparedWord: uint32 list), isValidInit = StartingDictWithStartingChars dict startingChars
+        let _, direction, startingChars, _ = StartingInfo
+        
 
         let checkCharactersOnHand (word: uint32 list) (charactersOnHand: uint32 list) (startingChars: uint32 list) =
             // Function to remove a character from the available characters lists
@@ -103,50 +106,45 @@ module internal MoveRobert
             else
                 checkWordChars word availableChars
 
-        let Letters = charactersOnHand @ startingChars
-
         // here we already check if we should pass
-        if not isValidInit then
-            [], StartingInfo
-        else 
-            // if it's valid, we get all possible words from this starting info
-            let possibleWords = GetAllPossibleWords dict charactersOnHand preparedWord
-            
-            // we filter the words to find valid words to play, 
-            // this it so that we don't play Autisti because the stepping
-            // doesn't stop it because autistic is a word. this prevents that
+       
+        // if it's valid, we get all possible words from this starting info
+        // getting our dict and word prepared 
+        let possibleWords =
+            if direction = (1, 0) || direction = (0, 1) then
+                let (preparedDict: Dict), (preparedWord: uint32 list), isValidInit = StartingDictWithStartingChars dict startingChars
+                GetAllPossibleWords dict charactersOnHand preparedWord
+            else
+                addToLists (GetAllPossibleWords dict charactersOnHand []) startingChars
+
+        // Filter the words to find valid words to play
+
+        // First set of filtered words
+        let rec filterValidWords1 (dict: Dictionary.Dict) (possibleWords: list<list<uint32>> * bool) =
             match possibleWords with
-            | _, false -> [], StartingInfo
-            | _, true ->
-                let rec filterValidWords (dict: Dictionary.Dict) (possibleWords: list<list<uint32>> * bool) =
-                    match possibleWords with
-                    | [], _ -> ([], false)
-                    | word::rest, valid ->
-                        let wordString = ConvertIntListToString word
-                        let isValidWord = lookup wordString dict
-                        let CanMakeWord = checkCharactersOnHand word charactersOnHand startingChars
-                        if isValidWord && CanMakeWord then
-                            let (validWords, allValid) = filterValidWords dict (rest, valid)
-                            (word :: validWords, allValid)
-                        else
-                            let (validWords, allValid) = filterValidWords dict (rest, valid)
-                            (validWords, false)
+            | [], _ -> ([], false)
+            | word::rest, valid ->
+                let wordString = ConvertIntListToString word
+                let isValidWord = lookup wordString dict
+                let CanMakeWord = checkCharactersOnHand word charactersOnHand startingChars
+                if isValidWord && CanMakeWord then
+                    let (validWords, allValid) = filterValidWords1 dict (rest, valid)
+                    (word :: validWords, allValid)
+                else
+                    let (validWords, allValid) = filterValidWords1 dict (rest, valid)
+                    (validWords, false)
 
-                // here we call the function above
-                let (filteredWords, allValid) = filterValidWords dict possibleWords
+        // Call the filtering functions for both sets of possible words
+        let (filteredWords1, allValid1) = filterValidWords1 dict possibleWords
 
-                filteredWords, StartingInfo
-
-
+        
+        // Return both sets of filtered words along with the StartingInfo tuple
+        (filteredWords1, StartingInfo)
 
     let GetStartingInfo (boardMap: Map<coord, uint32>) : (coord * coord * (uint32) list * uint32) list =
         let occupied = boardMap.Keys |> Seq.cast |> List.ofSeq
-
         let occupiedSet = Set.ofList occupied
 
-        //for OccupiedSet in occupiedSet do
-        //    printf "occupiedSet: %A" OccupiedSet
-        
         let aboveHelper (coord: coord) : bool =
             let checkAbove = (fst coord, snd coord - 1): coord
             not (Set.contains checkAbove occupiedSet)
@@ -193,44 +191,39 @@ module internal MoveRobert
 
         let rec verticalLen (coord: coord) (acc: uint32) : uint32 =
             let coord2: coord = (fst coord, snd coord + 1)
-            if
-                belowHelper coord2
-                && leftHelper coord2
-                && rightHelper coord2
-                && acc < 7u
-            then
+            if belowHelper coord2 && acc < 7u then
                 verticalLen coord2 (acc + 1u)
             else
-                acc 
-        
+                acc
+
         let rec horizontalLen (coord: coord) (acc: uint32) : uint32 =
             let coord2: coord = (fst coord + 1, snd coord)
-            if
-                rightHelper coord2
-                && aboveHelper coord2
-                && belowHelper coord2
-                && acc < 7u
-            then
+            if rightHelper coord2 && acc < 7u then
                 horizontalLen coord2 (acc + 1u)
             else
                 acc
-        
+
         let rec verticalHelper (coord: coord) =
-            if belowHelper coord && aboveHelper coord then
-                [ (coord, ((0, 1): coord), [ Map.find coord boardMap ], verticalLen coord 0u) ]
-            elif belowHelper coord && not (aboveHelper coord) then
-                [ (coord, ((0, 1): coord), lettersAbove coord [ Map.find coord boardMap ], verticalLen coord 0u) ]
-            else
-                []
-        
+            let allDirections = [(0, 1); (0, -1); (1, 0); (-1, 0)]
+            List.collect (fun (dx, dy) ->
+                if dy > 0 && belowHelper coord then
+                    [ (coord, ((dx, dy): coord), [ Map.find coord boardMap ], verticalLen coord 0u) ]
+                elif dy < 0 && aboveHelper coord then
+                    [ (coord, ((dx, dy): coord), lettersAbove coord [ Map.find coord boardMap ], verticalLen coord 0u) ]
+                else []
+            ) allDirections
+
         let rec horizontalHelper (coord: coord) =
-            if rightHelper coord && leftHelper coord then
-                [ (coord, ((1, 0): coord), [ Map.find coord boardMap ], horizontalLen coord 0u) ]
-            elif rightHelper coord && not (leftHelper coord) then
-                [ (coord, ((1, 0): coord), lettersLeft coord [ Map.find coord boardMap ], horizontalLen coord 0u) ]
-            else
-                []
-        
+            let allDirections = [(1, 0); (-1, 0); (0, 1); (0, -1)]
+            List.collect (fun (dx, dy) ->
+                if dx > 0 && rightHelper coord then
+                    [ (coord, ((dx, dy): coord), [ Map.find coord boardMap ], horizontalLen coord 0u) ]
+                elif dx < 0 && leftHelper coord then
+                    [ (coord, ((dx, dy): coord), lettersLeft coord [ Map.find coord boardMap ], horizontalLen coord 0u) ]
+                else []
+            ) allDirections
+
+
         let verticalStarters = List.collect verticalHelper occupied
         let horizontalStarters = List.collect horizontalHelper occupied
         

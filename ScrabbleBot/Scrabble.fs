@@ -234,6 +234,45 @@ module State =
 
         formatter [] (changedX, changedY) isFirstLetter wordList
 
+    let reversedLongestWordFormat (endCoord: coord) (direction: coord) (startingChars: uint32 list) (wordListWithCount: List<uint32> * int) : string =
+        let alphabet = "0ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        let dirX, dirY = direction
+        let endX, endY = endCoord
+
+        let (wordList, count) = wordListWithCount
+
+        // Calculate the starting coordinate based on the end coordinate and direction
+        let startX = endX - dirX * (count - 1)
+        let startY = endY - dirY * (count - 1)
+
+        // Format the word
+        let rec formatter acc (x, y) isFirstLetter = function
+            | [] -> String.concat " " (List.rev acc)
+            | hd::tl ->
+                let number = int hd 
+                let letterIndex = number  // Adjust index because 'A' = 1 in your system
+                if letterIndex < 0 || letterIndex >= alphabet.Length then
+                    failwith "Character index out of range"
+                let mutable letter = alphabet.[letterIndex]
+                match letterIndex with
+                | 0 -> letter = alphabet.[1]
+                | _ -> letter = alphabet.[letterIndex]
+                let points = findcharacterpoints number  // Get corresponding points for the number
+                let formatted = sprintf "%d %d %d%c%d" x y number letter points  // Concatenate number and points after the letter
+
+                // Recursively format the rest of the word list
+                formatter (formatted::acc) (x + dirX, y + dirY) false tl
+
+        // Check if the first letter should be removed based on startingChars
+        let isFirstLetter = 
+            not (List.isEmpty startingChars) &&
+            List.head startingChars = List.head wordList
+
+        // Start formatting from the calculated starting coordinates
+        formatter [] (startX, startY) isFirstLetter wordList
+
+
+
 
 
 module Scrabble =
@@ -253,19 +292,20 @@ module Scrabble =
                     let StartingInfo = ((0, 0), (1, 0), [], 7u)
                     let letters = MultiSet.toList (State.hand st)
                     let filteredWords = MoveRobert.RobertsFirstMove letters pieces st.dict  (StartingInfo)
-                    let longestWord = State.longestWord (fst filteredWords) 
+                    let downWords, startingInfo = filteredWords
+                    let longestWordDown = State.longestWord downWords 
 
-                    let startCoord, direction, startingChars, _ = snd filteredWords
+                    let startCoord, direction, startingChars, _ = startingInfo
 
-                    // Call longestWordFormat with needed inputs
-                    let formattedWord = 
-                        match longestWord with
-                        | wordList, true -> 
-                            State.longestWordFormat startCoord direction startingChars (wordList, List.length wordList)
-                        | _, false -> 
-                            "pass"
+                     // Call longestWordFormat with needed inputs
+                    let longestWord =
+                        match longestWordDown with
+                            | wordList, true -> 
+                                State.longestWordFormat startCoord direction startingChars (wordList, List.length wordList)
+                            | _, false -> 
+                                "pass"
 
-                    let move = RegEx.parseMove (formattedWord)
+                    let move = RegEx.parseMove (longestWord)
 
                     debugPrint (sprintf "Player %d -> Server:\n%A\n" (State.playerNumber st) move) // keep the debug lines. They are useful.
                     send cstream (SMPlay move)
@@ -273,43 +313,34 @@ module Scrabble =
                     //we have had some problems with parsing wrong directions, so we have tried to all normal directions
                     //and reversed, to cover all
                     
-                    let StartingInfoNormal = MoveRobert.GetStartingInfo (List.fold (fun acc (coord, (id, (_, _))) -> Map.add coord id acc) st.CBoard ms) 
-                    let reversedStartingInfo =
-                        StartingInfoNormal
-                        |> List.map (fun (coord, direction, list, id) ->
-                            let reversedDirection = (abs (fst direction), abs (snd direction))  // Take the absolute value of the direction
-                            (coord, reversedDirection, list, id))
-
-                    let StartingInfo = StartingInfoNormal @ reversedStartingInfo
-
-
-                    //for startingInfoNormal in StartingInfoNormal do
-                    //    printf "StartingInfoNormal: %A" startingInfoNormal
-
-                    //printfn "Starting Info Before Filtering: %A" StartingInfo
-
-                    let FilteredStartingInfo = State.filterStartingInfo st.CBoard StartingInfo
-
-                    //printfn "Starting Info After Filtering: %A" FilteredStartingInfo
-                    
-                    
+                    let StartingInfo = MoveRobert.GetStartingInfo (List.fold (fun acc (coord, (id, (_, _))) -> Map.add coord id acc) st.CBoard ms) 
+                                        
                     //under here we sort in our listOfWords, to find the perfect one
                     let letters = MultiSet.toList (State.hand st)
                     let mutable listOfWords = List.Empty
-
+                    
                     let startingInfoList = 
                         List.map (fun (coord, direction, chars, length) -> (coord, direction, chars, length)) StartingInfo
+                    
+                    let startingInfoListFiltered = 
+                        List.filter (fun (_, _, _, length) -> length <> 0u) startingInfoList
 
-                    for startingInfo in startingInfoList do 
+                    printf "startinginfo: %A" startingInfoListFiltered
+
+                    for startingInfo in startingInfoListFiltered do 
                         listOfWords <- MoveRobert.RobertsFirstMove letters pieces st.dict (startingInfo) :: listOfWords
                     
                     let mutable formattedWords = []
 
-                    for possibleWords in listOfWords do
-                        let startCoord, direction, startingChars, _ = (snd possibleWords)
-                        for wordList in fst possibleWords do
+                    for (longestWordDown, startingInfo) in listOfWords do
+                        let startCoord, direction, startingChars, _ = startingInfo
+                        for wordList in longestWordDown do
                             let formattedWord = 
-                                State.longestWordFormat startCoord direction startingChars (wordList, List.length wordList)
+                                if direction = (1, 0) || direction = (0, 1) then
+                                    State.longestWordFormat startCoord direction startingChars (wordList, List.length wordList)
+                                else
+                                    let reversedWordList = List.rev wordList
+                                    State.longestWordFormat startCoord direction startingChars (reversedWordList, List.length wordList)
                             // Add the formatted word to the list
                             if formattedWord = "" then
                                 formattedWords <- formattedWords @ ["pass"]
@@ -362,7 +393,7 @@ module Scrabble =
                     
                     //we match input to see if we need to pass or actually have something
                     //to play
-                    printf "TILES LEFT: %A" st.numberOfTilesLeft
+                    //printf "TILES LEFT: %A" st.numberOfTilesLeft
                     match input with
                     | "pass" | "" ->
                         if st.numberOfTilesLeft < MultiSet.size st.hand then
@@ -454,4 +485,4 @@ module Scrabble =
                   
         let handSet = List.fold (fun acc (x, k) -> MultiSet.add x k acc) MultiSet.empty hand
 
-        fun () -> playGame cstream tiles (State.mkState board dict playerNumber numPlayers playerTurn handSet Map.empty Map.empty 100u)
+        fun () -> playGame cstream tiles (State.mkState board dict playerNumber numPlayers playerTurn handSet Map.empty Map.empty (100u-(numPlayers*7u)-3u))
