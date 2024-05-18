@@ -3,7 +3,7 @@ module internal MoveRobert
     open ScrabbleUtil
     open ScrabbleUtil.Dictionary
     
-    let RobertsFirstMove (initCharactersOnHand : uint32 list) pieces (dict : Dictionary.Dict) (initStartingInfo : (coord * coord * uint32 list * uint32)) =
+    let RobertsFirstMove (initCharactersOnHand : uint32 list) pieces (dict : Dict) (initStartingInfo : coord * coord * uint32 list * uint32) =
         // Let's keep the unchanged part of the function as it is
         //let charactersOnHand = initCharactersOnHand |> List.filter (fun x -> x <> 0u)
         let charactersOnHand = initCharactersOnHand |> List.filter (fun x -> x <> 0u)
@@ -16,7 +16,7 @@ module internal MoveRobert
         // extracts the pair from the set
         let GetTuple (set:Set<char*int>) : char*int = 
             match (Set.toList set) with 
-            | x::xs -> x 
+            | x::_ -> x 
             | [] -> failwith "error" 
         
         // This function removes the letter that was just used
@@ -32,7 +32,7 @@ module internal MoveRobert
             let alphabet = " ABCDEFGHIJKLMNOPQRSTUVWXYZ"
             List.fold (fun acc letterAsUint ->
                 if letterAsUint >= 0u && letterAsUint <= 26u then
-                    acc + string alphabet.[int letterAsUint]
+                    acc + string alphabet[int letterAsUint]
                 else
                     "pass" // Ignore invalid letter codes
             ) "" wordList
@@ -42,7 +42,7 @@ module internal MoveRobert
         // This is where we could improve by also allowing to have them inside words,
         // or at the end, this limits us a lot, but we couldn't find a
         // sufficient solution
-        let StartingDictWithStartingChars (dict: Dictionary.Dict) (listOfCharsAsUint: list<uint32>) =
+        let StartingDictWithStartingChars (dict: Dict) (listOfCharsAsUint: list<uint32>) =
             List.fold (fun (accDict, accWord, _) char ->
                 match step (fst (GetTuple (Map.find char pieces))) accDict with
                 | Some (_, nextDict) ->
@@ -84,9 +84,6 @@ module internal MoveRobert
                 | Some idx -> List.take idx charsList @ List.skip (idx + 1) charsList
                 | None -> charsList
 
-            // Make copies of charactersOnHand and startingChars to avoid modifying the original lists
-            let mutable availableChars = List.append charactersOnHand startingChars
-
             // Function to check if each character in the word can be matched with available characters
             let rec checkWordChars (word: uint32 list) (charsList: uint32 list) =
                 match word with
@@ -104,7 +101,7 @@ module internal MoveRobert
             if List.length word <= List.length startingChars then
                 false
             else
-                checkWordChars word availableChars
+                checkWordChars word (List.append charactersOnHand startingChars)
 
         // here we already check if we should pass
        

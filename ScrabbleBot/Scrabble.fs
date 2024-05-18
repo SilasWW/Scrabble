@@ -304,81 +304,53 @@ module Scrabble =
                     
                     let StartingInfo = MoveRobert.GetStartingInfo (List.fold (fun acc (coord, (id, (_, _))) -> Map.add coord id acc) st.CBoard ms) 
                                         
-                    //under here we sort in our listOfWords, to find the perfect one
-                    let letters = MultiSet.toList (State.hand st)
-                    let mutable listOfWords = List.Empty
-                    
                     let startingInfoList = 
                         List.map (fun (coord, direction, chars, length) -> (coord, direction, chars, length)) StartingInfo
                     
                     let startingInfoListFiltered = 
                         List.filter (fun (_, _, _, length) -> length <> 0u) startingInfoList
-
-                    //printf "startinginfo: %A" startingInfoListFiltered
-
-                    for startingInfo in startingInfoListFiltered do 
-                        listOfWords <- MoveRobert.RobertsFirstMove letters pieces st.dict (startingInfo) :: listOfWords
                     
-                    let mutable formattedWords = []
+                    let letters = MultiSet.toList (State.hand st)
+                    let listOfWords =
+                        [
+                            for startingInfo in startingInfoListFiltered do
+                                yield MoveRobert.RobertsFirstMove letters pieces st.dict startingInfo
+                        ]
 
-                    for (longestWordDown, startingInfo) in listOfWords do
-                        let startCoord, direction, startingChars, _ = startingInfo
-                        for wordList in longestWordDown do
-                            let formattedWord = 
-                                if direction = (1, 0) || direction = (0, 1) then
-                                    State.longestWordFormat startCoord direction startingChars (wordList, List.length wordList)
-                                else
-                                    let reversedWordList = List.rev wordList
-                                    State.longestWordFormat startCoord direction startingChars (reversedWordList, List.length wordList)
-                            // Add the formatted word to the list
-                            if formattedWord = "" then
-                                formattedWords <- formattedWords @ ["pass"]
-                            else 
-                                formattedWords <- formattedWords @ [formattedWord]
+                    let formattedWords =
+                        [
+                            for (longestWordDown, startingInfo) in listOfWords do
+                                let startCoord, direction, startingChars, _ = startingInfo
+                                for wordList in longestWordDown do
+                                    if direction = (1, 0) || direction = (0, 1) then
+                                        yield State.longestWordFormat startCoord direction startingChars (wordList, List.length wordList)
+                                    else
+                                        let reversedWordList = List.rev wordList
+                                        yield State.longestWordFormat startCoord direction startingChars (reversedWordList, List.length wordList)
+                        ]
 
-                    
+                    //
                     let validWordsList =
                         formattedWords
-                        |> Seq.map (fun word ->
-
+                        |> Seq.choose (fun word ->
                             let stateWithInsertedMove = State.MovesIntoState (RegEx.parseMove word) st
-                            let everyWordOnTheBoardInStateWithInsertedMove = State.validater stateWithInsertedMove.playedLetters
-                            let stateValid =
-                                List.fold (fun (stateValidity:bool) (key:string, _) ->
-                                    if stateValidity then
-                                        if key.Length = 1 then
-                                            true
-                                        elif Dictionary.lookup key st.dict then
-                                            true
-                                        else
-                                            false
-                                    else
-                                        false
-                                ) true everyWordOnTheBoardInStateWithInsertedMove
-                            if stateValid then
+                            if State.validater stateWithInsertedMove.playedLetters |> List.forall (fun (key, _) -> key.Length = 1 || Dictionary.lookup key st.dict) then
                                 Some word
                             else
-                                None
-                        )
+                                None)
+                        
+                    //printfn "validWordsList: %A"validWordsList
                     
-                    //here we count spaces in our already formatted strings,
-                    //to get the longest word
-                    let spaceCount word = 
-                        word |> Seq.filter (fun c -> c = ' ') |> Seq.length
+                    let longestWord =
+                        if Seq.isEmpty validWordsList then
+                            "pass"
+                        else
+                            validWordsList
+                            |> Seq.maxBy (fun word -> word |> Seq.filter (fun c -> c = ' ') |> Seq.length)
 
-                    let formattedWordsList = validWordsList |> Seq.choose id |> Seq.toList
-
-                    let longestWord = 
-                        List.fold (fun longest word ->
-                            let longestSpaces = spaceCount longest
-                            let wordSpaces = spaceCount word
-                            if wordSpaces > longestSpaces then
-                                word
-                            else
-                                longest
-                        ) "" (formattedWordsList)
-
+                    //printfn "longestWord: %A" longestWord
                     let input = longestWord
+                    //printfn "input: %A" input
                     
                     //we match input to see if we need to pass or actually have something
                     //to play
