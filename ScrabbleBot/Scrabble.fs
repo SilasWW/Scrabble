@@ -159,18 +159,20 @@ module State =
 
         List.filter (fun (startCoord, direction, _, length) -> hasOccupiedTiles startCoord direction length) startingInfo
     
-    let longestWord (filteredWords: list<list<uint32>>) = 
-        let mutable maxLength = 0
-        let mutable maxList = []
-        for lst in filteredWords do
+    let longestWord (filteredWords: list<list<uint32>>) =
+        let findLongest (accLength, accList) lst =
             let length = List.length lst
-            if length > maxLength then
-                maxLength <- length
-                maxList <- lst
-        if maxList.IsEmpty then
-            ([], false) 
+            if length > accLength then
+                (length, lst)
+            else
+                (accLength, accList)
+
+        let (maxLength, maxList) = List.fold findLongest (0, []) filteredWords
+        if List.isEmpty maxList then
+            ([], false)
         else
             (maxList, true)
+
     let findcharacterpoints (char: int) = 
         match char with
         | 0 -> 0
