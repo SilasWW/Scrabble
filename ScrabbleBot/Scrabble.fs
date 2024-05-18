@@ -325,7 +325,7 @@ module Scrabble =
                     let startingInfoListFiltered = 
                         List.filter (fun (_, _, _, length) -> length <> 0u) startingInfoList
 
-                    printf "startinginfo: %A" startingInfoListFiltered
+                    //printf "startinginfo: %A" startingInfoListFiltered
 
                     for startingInfo in startingInfoListFiltered do 
                         listOfWords <- MoveRobert.RobertsFirstMove letters pieces st.dict (startingInfo) :: listOfWords

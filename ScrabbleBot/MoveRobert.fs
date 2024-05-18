@@ -202,6 +202,20 @@ module internal MoveRobert
                 horizontalLen coord2 (acc + 1u)
             else
                 acc
+        
+        let rec verticalLenUp (coord: coord) (acc: uint32) : uint32 =
+            let coord2: coord = (fst coord, snd coord - 1)
+            if aboveHelper coord2 && acc < 7u then
+                verticalLenUp coord2 (acc + 1u)
+            else
+                acc
+
+        let rec horizontalLenLeft (coord: coord) (acc: uint32) : uint32 =
+            let coord2: coord = (fst coord - 1, snd coord)
+            if leftHelper coord2 && acc < 7u then
+                horizontalLenLeft coord2 (acc + 1u)
+            else
+                acc
 
         let rec verticalHelper (coord: coord) =
             let allDirections = [(0, 1); (0, -1); (1, 0); (-1, 0)]
@@ -209,7 +223,7 @@ module internal MoveRobert
                 if dy > 0 && belowHelper coord then
                     [ (coord, ((dx, dy): coord), [ Map.find coord boardMap ], verticalLen coord 0u) ]
                 elif dy < 0 && aboveHelper coord then
-                    [ (coord, ((dx, dy): coord), lettersAbove coord [ Map.find coord boardMap ], verticalLen coord 0u) ]
+                    [ (coord, ((dx, dy): coord), lettersAbove coord [ Map.find coord boardMap ], verticalLenUp coord 0u) ]
                 else []
             ) allDirections
 
@@ -219,7 +233,7 @@ module internal MoveRobert
                 if dx > 0 && rightHelper coord then
                     [ (coord, ((dx, dy): coord), [ Map.find coord boardMap ], horizontalLen coord 0u) ]
                 elif dx < 0 && leftHelper coord then
-                    [ (coord, ((dx, dy): coord), lettersLeft coord [ Map.find coord boardMap ], horizontalLen coord 0u) ]
+                    [ (coord, ((dx, dy): coord), lettersLeft coord [ Map.find coord boardMap ], horizontalLenLeft coord 0u) ]
                 else []
             ) allDirections
 
